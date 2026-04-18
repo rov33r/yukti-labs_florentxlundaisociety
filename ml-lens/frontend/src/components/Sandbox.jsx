@@ -4,6 +4,7 @@ import {
   MiniMap,
   Controls,
   Background,
+  Panel,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -83,6 +84,32 @@ export default function Sandbox() {
           maskColor="rgba(250, 250, 250, 0.8)"
         />
         <Background color="#E5E5E5" gap={16} />
+
+        <Panel position="bottom-right">
+          <div className="sandbox-legend">
+            <div className="legend-row">
+              <span className="legend-node navy" />
+              <span className="legend-label">Encoder</span>
+            </div>
+            <div className="legend-row">
+              <span className="legend-node orange" />
+              <span className="legend-label">Decoder</span>
+            </div>
+            <div className="legend-row">
+              <span className="legend-node plain" />
+              <span className="legend-label">Sub-layer</span>
+            </div>
+            <div className="legend-divider" />
+            <div className="legend-row">
+              <span className="legend-edge animated" />
+              <span className="legend-label">Data flow</span>
+            </div>
+            <div className="legend-row">
+              <span className="legend-edge dashed" />
+              <span className="legend-label">Cross attention</span>
+            </div>
+          </div>
+        </Panel>
       </ReactFlow>
 
       <NodeInfoPopup node={selectedNode} onClose={() => setSelectedNode(null)} />

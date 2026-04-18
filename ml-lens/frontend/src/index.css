@@ -623,6 +623,63 @@ input:disabled {
   margin-top: 8px;
 }
 
+/* ── Sandbox Legend ────────────────────────────────────── */
+.sandbox-legend {
+  background: white;
+  border: 1px solid #D6E4F0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.08);
+  min-width: 140px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.legend-label {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px;
+  color: #4B5E78;
+}
+
+.legend-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 2px solid;
+}
+
+.legend-node.navy  { background: #EEF3FA; border-color: #1E3A5F; }
+.legend-node.orange { background: #FFF7ED; border-color: #F97316; }
+.legend-node.plain  { background: white;   border-color: #D6E4F0; }
+
+.legend-edge {
+  width: 24px;
+  height: 2px;
+  flex-shrink: 0;
+  border-radius: 1px;
+}
+
+.legend-edge.animated { background: #1E3A5F; }
+.legend-edge.dashed {
+  background: transparent;
+  border-top: 2px dashed #F97316;
+  height: 0;
+}
+
+.legend-divider {
+  height: 1px;
+  background: #EEF3FA;
+  margin: 2px 0;
+}
+
 /* ── Asterisk Spinner ──────────────────────────────────── */
 @keyframes asterisk-spin {
   from { transform: rotate(0deg); }
