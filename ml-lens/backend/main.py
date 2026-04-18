@@ -17,6 +17,7 @@ from schema.models import (
     Invariant,
 )
 from agent import run_traversal, TraversalTrace
+from ingestion import ingest_paper, ComponentExtractorError
 
 app = FastAPI(title="ML Lens API")
 
@@ -69,6 +70,27 @@ async def get_evaluations():
 @app.post("/api/evaluations", response_model=Evaluation)
 async def create_evaluation(evaluation: Evaluation):
     return {"id": 4, **evaluation.model_dump(), "created_at": datetime.now().isoformat()}
+
+
+# ── Ingestion endpoint ──────────────────────────────────────────────────────
+
+class IngestRequest(BaseModel):
+    url_or_id: str
+    force_refresh: bool = False
+
+
+@app.post("/api/ingest", response_model=LockedManifest)
+async def ingest(req: IngestRequest):
+    """Download + parse an arXiv paper and extract its ComponentManifest."""
+    try:
+        manifest = ingest_paper(req.url_or_id, force_refresh=req.force_refresh)
+        return lock_manifest(manifest)
+    except ComponentExtractorError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Ingestion error: {exc}")
 
 
 # ── Traversal Agent endpoint ─────────────────────────────────────────────────

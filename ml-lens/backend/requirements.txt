@@ -1,7 +1,8 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-pydantic==2.5.0
-python-dotenv==1.0.0
-anthropic==0.7.1
-e2b==0.4.0
-langfuse==2.3.0
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.9.2
+python-dotenv==1.0.1
+openai>=1.30.0
+pymupdf>=1.24.0
+arxiv>=2.1.0
+httpx>=0.27.0
