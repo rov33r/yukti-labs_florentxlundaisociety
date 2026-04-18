@@ -264,6 +264,131 @@ def _math_residual(comp: Component, in_sym: list[str], res: dict) -> MathTransfo
     )
 
 
+def _math_softmax(comp: Component, in_sym: list[str], res: dict) -> MathTransformResult:
+    B, h, T = res["B"], res["h"], res["T"]
+    # Softmax usually operates over attention scores [B, h, T, T]
+    score_sym = ["B", "h", "T", "T"]
+    out_sym = score_sym[:]
+    flops = B * h * T * T * 3  # exp + sum + div per element
+    return MathTransformResult(
+        input_symbolic=in_sym, input_concrete=[_c(s, res) for s in in_sym],
+        output_symbolic=out_sym, output_concrete=[_c(s, res) for s in out_sym],
+        intermediates=[
+            _mk("scores", score_sym, res, "Raw attention logits",
+                r"\frac{QK^\top}{\sqrt{d_k}}"),
+            _mk("exp_scores", score_sym, res, "Exponentiate",
+                r"e^{s_i / \sqrt{d_k}}"),
+            _mk("attn_weights", score_sym, res, "Normalize rows to sum 1",
+                r"\text{softmax}(s)_i = \frac{e^{s_i}}{\sum_j e^{s_j}}"),
+        ],
+        input_description=f"Scaled attention scores {_shape_str(score_sym, res)}",
+        output_description=f"Attention probability distribution {_shape_str(out_sym, res)}, each row sums to 1",
+        transformation_steps=[
+            f"Input: scaled scores {B}×{h}×{T}×{T}  (one row per query position)",
+            "Numerical stability: subtract row-max before exp  (prevents overflow)",
+            f"exp(s): exponentiate all {B*h*T*T:,} values",
+            "Normalise: divide each row by its sum → probabilities in [0, 1]",
+            f"Each of {B*h*T} query positions now has a distribution over {T} key positions",
+            f"Approx FLOPs: {flops:,}  (0 learnable parameters)",
+        ],
+        parameter_count=0,
+        flops_approx=flops,
+    )
+
+
+def _math_masking(comp: Component, in_sym: list[str], res: dict) -> MathTransformResult:
+    B, h, T = res["B"], res["h"], res["T"]
+    score_sym = ["B", "h", "T", "T"]
+    out_sym = score_sym[:]
+    flops = B * h * T * T  # one comparison + fill per element
+    return MathTransformResult(
+        input_symbolic=in_sym, input_concrete=[_c(s, res) for s in in_sym],
+        output_symbolic=out_sym, output_concrete=[_c(s, res) for s in out_sym],
+        intermediates=[
+            _mk("causal_mask", ["T", "T"], res, "Upper-triangular boolean mask",
+                r"M_{ij} = \begin{cases}0 & i \geq j \\ -\infty & i < j\end{cases}"),
+            _mk("masked_scores", score_sym, res, "Scores after masking",
+                r"s_{ij} + M_{ij}"),
+        ],
+        input_description=f"Raw attention scores {_shape_str(score_sym, res)}",
+        output_description=f"Causally masked scores {_shape_str(out_sym, res)} — future positions set to −∞ so softmax zeroes them",
+        transformation_steps=[
+            f"Build T×T upper-triangular mask (−∞ above diagonal, 0 on/below)",
+            f"Add mask to scores: positions where i < j become −∞",
+            "After softmax, −∞ → 0 probability — model cannot attend to future tokens",
+            f"Shape preserved: {B}×{h}×{T}×{T}",
+            "Parameters: 0  (fixed operation, no learned weights)",
+        ],
+        parameter_count=0,
+        flops_approx=flops,
+    )
+
+
+def _math_linear_projection(comp: Component, in_sym: list[str], res: dict) -> MathTransformResult:
+    B, T, d = res["B"], res["T"], res["d_model"]
+    # Determine output dim from hyperparameters if available, else same as input
+    d_out_str = comp.hyperparameters.get("d_out") or comp.hyperparameters.get("d_model")
+    try:
+        d_out = int(str(d_out_str).split()[0]) if d_out_str else d
+    except (ValueError, TypeError):
+        d_out = d
+    out_sym = ["B", "T", "d_out"] if d_out != d else ["B", "T", "d_model"]
+    params = d * d_out
+    flops = B * T * d * d_out * 2
+    return MathTransformResult(
+        input_symbolic=in_sym, input_concrete=[_c(s, res) for s in in_sym],
+        output_symbolic=out_sym, output_concrete=[B, T, d_out],
+        intermediates=[
+            _mk("weight", ["d_model", "d_out"], res, "Projection matrix",
+                r"W \in \mathbb{R}^{d_{model} \times d_{out}}"),
+            _mk("output", out_sym, res, "Linear map",
+                r"xW + b"),
+        ],
+        input_description=f"Input representation {_shape_str(in_sym, res)}",
+        output_description=f"Projected representation {_shape_str(out_sym, res)} via learned linear map",
+        transformation_steps=[
+            f"Weight matrix W ∈ ℝ^{{{d}×{d_out}}}  (bias b ∈ ℝ^{{{d_out}}})",
+            f"output = x @ W + b  →  {B}×{T}×{d_out}",
+            f"Parameters: {d}×{d_out} + {d_out} = {params + d_out:,}",
+            f"Approx FLOPs: {flops:,}",
+        ],
+        parameter_count=params,
+        flops_approx=flops,
+    )
+
+
+def _math_output_head(comp: Component, in_sym: list[str], res: dict) -> MathTransformResult:
+    B, T, d = res["B"], res["T"], res["d_model"]
+    vocab = res.get("vocab_size", 30000)
+    out_sym = ["B", "T", "vocab_size"]
+    params = d * vocab
+    flops = B * T * d * vocab * 2
+    return MathTransformResult(
+        input_symbolic=in_sym, input_concrete=[_c(s, res) for s in in_sym],
+        output_symbolic=out_sym, output_concrete=[B, T, vocab],
+        intermediates=[
+            _mk("lm_weight", ["d_model", "vocab_size"], res, "Unembedding matrix (often tied to input embedding)",
+                r"W_U \in \mathbb{R}^{d_{model} \times V}"),
+            _mk("logits", ["B", "T", "vocab_size"], res, "Unnormalized vocabulary scores",
+                r"h W_U^\top \in \mathbb{R}^{B \times T \times V}"),
+            _mk("next_token_probs", ["B", "T", "vocab_size"], res, "Softmax over vocabulary (inference only)",
+                r"\text{softmax}(h W_U^\top)"),
+        ],
+        input_description=f"Final hidden states {_shape_str(in_sym, res)}",
+        output_description=f"Vocabulary logits {_shape_str(out_sym, res)} — one score per token per position",
+        transformation_steps=[
+            f"Unembedding W_U ∈ ℝ^{{{d}×{vocab:,}}} projects {d}-dim hidden → {vocab:,} vocab scores",
+            "Often weight-tied to input embedding matrix (halves parameter count)",
+            f"Output logits: {B}×{T}×{vocab:,}  — argmax gives predicted next token",
+            "During training: cross-entropy loss over these logits vs true next tokens",
+            f"Parameters: {params:,}  (or 0 if weight-tied)",
+            f"Approx FLOPs: {flops:,}",
+        ],
+        parameter_count=params,
+        flops_approx=flops,
+    )
+
+
 def _math_passthrough(comp: Component, in_sym: list[str], res: dict, label: str) -> MathTransformResult:
     """Generic shape-preserving passthrough for masking, softmax, output_head, etc."""
     B, T, d = res["B"], res["T"], res["d_model"]
@@ -323,9 +448,16 @@ def compute_transform(
         return _math_layernorm(component, in_sym, res)
     elif kind == "residual":
         return _math_residual(component, in_sym, res)
+    elif kind == "softmax":
+        return _math_softmax(component, in_sym, res)
+    elif kind == "masking":
+        return _math_masking(component, in_sym, res)
+    elif kind == "linear_projection":
+        return _math_linear_projection(component, in_sym, res)
+    elif kind == "output_head":
+        return _math_output_head(component, in_sym, res)
     else:
         result = _math_passthrough(component, in_sym, res, kind.replace("_", " "))
-        # Apply contract output shape if available
         if contract:
             result.output_symbolic = out_sym
             result.output_concrete = [_c(s, res) for s in out_sym]
