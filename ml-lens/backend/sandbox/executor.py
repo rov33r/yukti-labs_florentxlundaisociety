@@ -1,28 +1,32 @@
-import os
+import sys
+import io
+from contextlib import redirect_stdout, redirect_stderr
 from pydantic import BaseModel
-from e2b import Sandbox
 
 
 class RawResult(BaseModel):
-    """Result of executing code in E2B sandbox."""
+    """Result of executing code in sandbox."""
     stdout: str
     stderr: str
     success: bool
 
 
 async def execute_in_sandbox(code: str) -> RawResult:
-    """Execute Python code in E2B sandbox and capture output."""
-    api_key = os.getenv("E2B_API_KEY")
-    if not api_key:
-        raise ValueError("E2B_API_KEY environment variable not set")
+    """Execute Python code locally and capture output."""
+    stdout_capture = io.StringIO()
+    stderr_capture = io.StringIO()
 
-    sandbox = Sandbox(api_key=api_key)
     try:
-        execution = await sandbox.run_python(code)
+        with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+            exec(code, {"__name__": "__main__"})
         return RawResult(
-            stdout=execution.stdout or "",
-            stderr=execution.stderr or "",
-            success=execution.exit_code == 0
+            stdout=stdout_capture.getvalue(),
+            stderr=stderr_capture.getvalue(),
+            success=True
         )
-    finally:
-        await sandbox.close()
+    except Exception as e:
+        return RawResult(
+            stdout=stdout_capture.getvalue(),
+            stderr=str(e),
+            success=False
+        )
