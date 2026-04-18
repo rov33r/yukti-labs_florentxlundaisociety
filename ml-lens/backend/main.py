@@ -23,7 +23,7 @@ from ingestion.component_extractor import ComponentExtractorError
 from ingestion.pipeline import _arxiv_id_from
 from ingestion.prompts import EXTRACTION_SYSTEM_PROMPT
 from schema.models import ComponentManifest
-from routers import diff
+from routers import diff, test
 
 load_dotenv()
 
@@ -43,6 +43,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(diff.router, prefix="/diff", tags=["diff"])
+app.include_router(test.router, prefix="/test", tags=["test"])
 
 class StatItem(BaseModel):
     label: str
