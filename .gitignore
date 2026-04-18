@@ -27,3 +27,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# ML Lens local cache (PDFs, Docling output, extracted manifests)
+.cache/
+.ml-lens-cache/
