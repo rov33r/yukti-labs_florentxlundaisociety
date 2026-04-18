@@ -3,27 +3,64 @@
     "Request": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "prompt": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "prompt": { "type": "string" }
       }
     },
     "Response": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "output": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        }
+        "id": { "type": "string" },
+        "output": { "type": "string" },
+        "metadata": { "type": "object" }
       }
+    },
+    "StateSnapshot": {
+      "type": "object",
+      "properties": {
+        "component_id": { "type": "string" },
+        "input_shape": { "type": "string" },
+        "output_shape": { "type": "string" },
+        "input_sample": { "type": "array", "items": { "type": "number" } },
+        "output_sample": { "type": "array", "items": { "type": "number" } },
+        "operation_note": { "type": "string" }
+      },
+      "required": ["component_id", "input_shape", "output_shape", "input_sample", "output_sample", "operation_note"]
+    },
+    "HyperparamDelta": {
+      "type": "object",
+      "properties": {
+        "component_id": { "type": "string" },
+        "param": { "type": "string" },
+        "old_value": { "type": "number" },
+        "new_value": { "type": "number" }
+      },
+      "required": ["component_id", "param", "old_value", "new_value"]
+    },
+    "ComponentDiff": {
+      "type": "object",
+      "properties": {
+        "component_id": { "type": "string" },
+        "changed": { "type": "boolean" },
+        "param_deltas": { "type": "array", "$ref": "#/definitions/HyperparamDelta" },
+        "old_shapes": { "type": "object" },
+        "new_shapes": { "type": "object" },
+        "rationale": { "type": "string" },
+        "invariants_held": { "type": "array", "items": { "type": "string" } },
+        "invariants_broken": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["component_id", "changed", "old_shapes", "new_shapes"]
+    },
+    "SchemaDiff": {
+      "type": "object",
+      "properties": {
+        "paper_id": { "type": "string" },
+        "base_params": { "type": "object" },
+        "modified_params": { "type": "object" },
+        "component_diffs": { "type": "array", "$ref": "#/definitions/ComponentDiff" },
+        "implementation_notes": { "type": "string" }
+      },
+      "required": ["paper_id", "base_params", "modified_params", "component_diffs", "implementation_notes"]
     }
   }
 }

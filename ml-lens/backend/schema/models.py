@@ -119,3 +119,57 @@ class ComponentManifest(BaseModel):
     notes: Optional[str] = Field(
         None, description="Extractor notes, ambiguities flagged for human review"
     )
+    locked: bool = Field(
+        default=False, description="Whether this manifest is locked for diff generation"
+    )
+
+
+class StateSnapshot(BaseModel):
+    """Captured tensor state at a single layer during forward pass."""
+
+    component_id: str
+    input_shape: str
+    output_shape: str
+    input_sample: list[float]
+    output_sample: list[float]
+    operation_note: str
+
+
+class TraversalTrace(BaseModel):
+    """Complete record of one forward pass through the model."""
+
+    paper_id: str
+    params: dict
+    snapshots: list[StateSnapshot]
+
+
+class HyperparamDelta(BaseModel):
+    """A single hyperparameter change."""
+
+    component_id: str
+    param: str
+    old_value: int | float
+    new_value: int | float
+
+
+class ComponentDiff(BaseModel):
+    """Per-component diff including tensor shape changes and architectural rationale."""
+
+    component_id: str
+    changed: bool
+    param_deltas: list[HyperparamDelta] = Field(default_factory=list)
+    old_shapes: dict
+    new_shapes: dict
+    rationale: str = ""
+    invariants_held: list[str] = Field(default_factory=list)
+    invariants_broken: list[str] = Field(default_factory=list)
+
+
+class SchemaDiff(BaseModel):
+    """Top-level diff specification for a modified architecture."""
+
+    paper_id: str
+    base_params: dict
+    modified_params: dict
+    component_diffs: list[ComponentDiff]
+    implementation_notes: str

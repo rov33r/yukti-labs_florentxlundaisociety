@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useState } from 'react'
 import {
   ReactFlow,
   MiniMap,
@@ -9,6 +9,9 @@ import {
   addEdge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { computeDiff } from '../api/client'
+import { useDiffStore } from '../store/diffStore'
+import DiffPanel from './DiffPanel'
 
 const mockNodes = [
   {
@@ -94,11 +97,64 @@ const mockEdges = [
 export default function Sandbox() {
   const [nodes, setNodes, onNodesChange] = useNodesState(mockNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(mockEdges)
+  const [numHeads, setNumHeads] = useState(8)
+  const [diffResult, setDiffResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const { setDiff } = useDiffStore()
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges],
   )
+
+  const handleRunDiff = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const manifest = {
+        paper: {
+          arxiv_id: "1706.03762",
+          title: "Attention Is All You Need",
+          authors: [],
+          abstract: null,
+          published: null,
+          pdf_url: null
+        },
+        components: [],
+        tensor_contracts: [],
+        invariants: [],
+        symbol_table: {},
+        notes: null,
+        locked: true
+      }
+      const baseParams = { d_model: 512, num_heads: 8, d_ff: 2048, seq_len: 8 }
+      const deltas = [{ component_id: "attention", param: "num_heads", old_value: 8, new_value: numHeads }]
+      const result = await computeDiff(manifest, baseParams, deltas)
+      setDiffResult(result)
+      setDiff(result.schema_diff)
+      updateNodeColorsForDiff(result.schema_diff)
+    } catch (err) {
+      setError(err.message || 'Failed to compute diff')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateNodeColorsForDiff = (schemaDiff) => {
+    const changedIds = new Set(schemaDiff.component_diffs.filter(d => d.changed).map(d => d.component_id))
+    setNodes((ns) =>
+      ns.map((n) => {
+        if (changedIds.has(n.id === '5' ? 'attention' : null)) {
+          return {
+            ...n,
+            style: { ...n.style, background: '#FAEEDA', border: '1.5px solid #854F0B' }
+          }
+        }
+        return n
+      })
+    )
+  }
 
   return (
     <div className="sandbox-page">
@@ -110,6 +166,31 @@ export default function Sandbox() {
         <div className="sandbox-badges">
           <span className="badge badge-completed">Mock Data</span>
         </div>
+      </div>
+
+      <div className="sandbox-controls">
+        <div className="slider-control">
+          <label>
+            num_heads: {numHeads}
+            <input
+              type="range"
+              min="1"
+              max="16"
+              step="1"
+              value={numHeads}
+              onChange={(e) => setNumHeads(Number(e.target.value))}
+              style={{ marginLeft: '12px' }}
+            />
+          </label>
+        </div>
+        <button
+          className="btn-primary"
+          onClick={handleRunDiff}
+          disabled={loading}
+        >
+          {loading ? 'Computing diff…' : 'Run diff against schema'}
+        </button>
+        {error && <p style={{ color: 'red', marginTop: '8px' }}>{error}</p>}
       </div>
 
       <div className="sandbox-legend">
@@ -138,6 +219,8 @@ export default function Sandbox() {
           <Background color="#E5E5E5" gap={16} />
         </ReactFlow>
       </div>
+
+      {diffResult && <DiffPanel schemaDiff={diffResult.schema_diff} />}
     </div>
   )
 }

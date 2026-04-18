@@ -1,0 +1,72 @@
+{
+  "diff_result": {
+    "baseline_trace": {
+      "paper_id": "1706.03762",
+      "params": { "d_model": 512, "num_heads": 8, "d_ff": 2048, "seq_len": 8, "d_k": 64 },
+      "snapshots": [
+        { "component_id": "embedding", "input_shape": "(1, 8)", "output_shape": "(1, 8, 512)", "input_sample": [42, 7, 13, 99], "output_sample": [0.12, -0.43, 0.08, 0.31], "operation_note": "embed 1×8 tokens → (1,8,512)" },
+        { "component_id": "attention", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.12, -0.43, 0.08, 0.31], "output_sample": [0.22, -0.11, 0.44, 0.09], "operation_note": "8 heads, d_k=64, seq=8" },
+        { "component_id": "ffn", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.22, -0.11, 0.44, 0.09], "output_sample": [0.31, 0.07, -0.22, 0.15], "operation_note": "expand 512→2048→512" },
+        { "component_id": "norm", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.31, 0.07, -0.22, 0.15], "output_sample": [0.44, 0.02, -0.31, 0.19], "operation_note": "LayerNorm over d=512" }
+      ]
+    },
+    "modified_trace": {
+      "paper_id": "1706.03762",
+      "params": { "d_model": 512, "num_heads": 4, "d_ff": 2048, "seq_len": 8, "d_k": 128 },
+      "snapshots": [
+        { "component_id": "embedding", "input_shape": "(1, 8)", "output_shape": "(1, 8, 512)", "input_sample": [42, 7, 13, 99], "output_sample": [0.12, -0.43, 0.08, 0.31], "operation_note": "embed 1×8 tokens → (1,8,512)" },
+        { "component_id": "attention", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.12, -0.43, 0.08, 0.31], "output_sample": [0.19, -0.08, 0.41, 0.11], "operation_note": "4 heads, d_k=128, seq=8" },
+        { "component_id": "ffn", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.19, -0.08, 0.41, 0.11], "output_sample": [0.31, 0.07, -0.22, 0.15], "operation_note": "expand 512→2048→512" },
+        { "component_id": "norm", "input_shape": "(1, 8, 512)", "output_shape": "(1, 8, 512)", "input_sample": [0.31, 0.07, -0.22, 0.15], "output_sample": [0.44, 0.02, -0.31, 0.19], "operation_note": "LayerNorm over d=512" }
+      ]
+    },
+    "schema_diff": {
+      "paper_id": "1706.03762",
+      "base_params": { "d_model": 512, "num_heads": 8, "d_ff": 2048, "d_k": 64 },
+      "modified_params": { "d_model": 512, "num_heads": 4, "d_ff": 2048, "d_k": 128 },
+      "component_diffs": [
+        {
+          "component_id": "embedding",
+          "changed": false,
+          "param_deltas": [],
+          "old_shapes": { "input": "(1, 8)", "output": "(1, 8, 512)" },
+          "new_shapes": { "input": "(1, 8)", "output": "(1, 8, 512)" },
+          "rationale": "",
+          "invariants_held": [],
+          "invariants_broken": []
+        },
+        {
+          "component_id": "attention",
+          "changed": true,
+          "param_deltas": [{ "component_id": "attention", "param": "num_heads", "old_value": 8, "new_value": 4 }],
+          "old_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "new_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "rationale": "Halving num_heads doubles d_k from 64 to 128. Each head now attends over a wider key subspace. The view() and transpose() calls in the forward pass must use (B, T, 4, 128) not (B, T, 8, 64). Output shape is unchanged so the residual connection and downstream LayerNorm are unaffected.",
+          "invariants_held": ["residual_connection"],
+          "invariants_broken": []
+        },
+        {
+          "component_id": "ffn",
+          "changed": false,
+          "param_deltas": [],
+          "old_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "new_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "rationale": "",
+          "invariants_held": ["residual_connection"],
+          "invariants_broken": []
+        },
+        {
+          "component_id": "norm",
+          "changed": false,
+          "param_deltas": [],
+          "old_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "new_shapes": { "input": "(1, 8, 512)", "output": "(1, 8, 512)" },
+          "rationale": "",
+          "invariants_held": [],
+          "invariants_broken": []
+        }
+      ],
+      "implementation_notes": "Change MultiHeadAttention to use num_heads=4 and d_k=128. In the forward() method, update the view() calls from (B, T, 8, 64) to (B, T, 4, 128). The Q, K, V linear projections remain (d_model, d_model) — no weight shape changes required. FFN, LayerNorm, and embedding layers are unchanged. Residual connections are unaffected."
+    }
+  }
+}
