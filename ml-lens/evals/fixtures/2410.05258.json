@@ -1,0 +1,623 @@
+{
+  "paper": {
+    "arxiv_id": "2410.05258",
+    "title": "Differential Transformer",
+    "authors": [
+      "Tianzhu Ye",
+      "Li Dong",
+      "Yuqing Xia",
+      "Yutao Sun",
+      "Yi Zhu",
+      "Gao Huang",
+      "Furu Wei"
+    ],
+    "abstract": "Transformer tends to overallocate attention to irrelevant context. In this work, we introduce Diff Transformer, which amplifies attention to the relevant context while canceling noise. Specifically, the differential attention mechanism calculates attention scores as the difference between two separate softmax attention maps. The subtraction cancels noise, promoting the emergence of sparse attention patterns. Experimental results on language modeling show that Diff Transformer outperforms Transformer in various settings of scaling up model size and training tokens. More intriguingly, it offers notable advantages in practical applications, such as long-context modeling, key information retrieval, hallucination mitigation, in-context learning, and reduction of activation outliers. By being less distracted by irrelevant context, Diff Transformer can mitigate hallucination in question answering and text summarization. For in-context learning, Diff Transformer not only enhances accuracy but is also more robust to order permutation, which was considered as a chronic robustness issue. The results position Diff Transformer as a highly effective and promising architecture to advance large language models.",
+    "published": "2024-10-07T17:57:38+00:00",
+    "pdf_url": "https://arxiv.org/pdf/2410.05258v2"
+  },
+  "components": [
+    {
+      "id": "input_embedding",
+      "name": "Input Embeddings",
+      "kind": "input_embedding",
+      "description": "Pack input token embeddings into matrix X^0 = [x1, ..., xN] \u2208 R^(N\u00d7d_model)",
+      "operations": [
+        "token_embedding_lookup",
+        "packing_into_matrix"
+      ],
+      "depends_on": [],
+      "hyperparameters": {
+        "N": "sequence length",
+        "d_model": "hidden dimension"
+      },
+      "equations": [
+        "X^0 = [vx_1, \\cdots, vx_{N}] \\in \\mathbb{R}^{N\\times d_{\\text{model}}}"
+      ],
+      "quote": null
+    },
+    {
+      "id": "positional_encoding",
+      "name": "Rotary Position Embedding",
+      "kind": "positional_encoding",
+      "description": "Rotary Position Embedding (RoPE) used for positional encoding",
+      "operations": [
+        "rope_encoding"
+      ],
+      "depends_on": [
+        "input_embedding"
+      ],
+      "hyperparameters": {
+        "theta": "RoPE base frequency, set to 640000 for 64K context"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "query_key_split_projection",
+      "name": "Query/Key Split Projection",
+      "kind": "linear_projection",
+      "description": "Project input X to two sets of query and key vectors by splitting the output channel dimension",
+      "operations": [
+        "linear_projection",
+        "channel_split"
+      ],
+      "depends_on": [
+        "input_embedding"
+      ],
+      "hyperparameters": {
+        "W_Q": "query projection matrix \u2208 R^(d_model \u00d7 2d)",
+        "W_K": "key projection matrix \u2208 R^(d_model \u00d7 2d)",
+        "d": "head dimension"
+      },
+      "equations": [
+        "[Q_1 ; Q_2] = X W^Q ,\\quad [K_1 ; K_2] = X W^K"
+      ],
+      "quote": null
+    },
+    {
+      "id": "value_projection",
+      "name": "Value Projection",
+      "kind": "linear_projection",
+      "description": "Project input X to value vectors with doubled output dimension",
+      "operations": [
+        "linear_projection"
+      ],
+      "depends_on": [
+        "input_embedding"
+      ],
+      "hyperparameters": {
+        "W_V": "value projection matrix \u2208 R^(d_model \u00d7 2d)"
+      },
+      "equations": [
+        "V = X W^V"
+      ],
+      "quote": null
+    },
+    {
+      "id": "lambda_parameter",
+      "name": "Differential Scalar \u03bb",
+      "kind": "other",
+      "description": "Learnable scalar that controls the differential attention weighting, re-parameterized from learnable vectors",
+      "operations": [
+        "exp",
+        "dot_product",
+        "addition"
+      ],
+      "depends_on": [],
+      "hyperparameters": {
+        "lambda_q1": "learnable query vector 1 \u2208 R^d",
+        "lambda_k1": "learnable key vector 1 \u2208 R^d",
+        "lambda_q2": "learnable query vector 2 \u2208 R^d",
+        "lambda_k2": "learnable key vector 2 \u2208 R^d",
+        "lambda_init": "initialization constant in (0,1)"
+      },
+      "equations": [
+        "\\lambda = \\exp( \\mathbf{\\lambda_{q_1}} \\cdot \\mathbf{\\lambda_{k_1}} ) - \\exp( \\mathbf{\\lambda_{q_2}} \\cdot \\mathbf{\\lambda_{k_2}} ) + \\lambda_{\\text{init}}"
+      ],
+      "quote": null
+    },
+    {
+      "id": "differential_attention",
+      "name": "Differential Attention (DiffAttn)",
+      "kind": "attention",
+      "description": "Core differential attention mechanism that computes attention scores as the difference between two softmax attention maps to cancel noise",
+      "operations": [
+        "scaled_dot_product",
+        "softmax",
+        "subtraction",
+        "weighted_sum"
+      ],
+      "depends_on": [
+        "query_key_split_projection",
+        "value_projection",
+        "lambda_parameter"
+      ],
+      "hyperparameters": {
+        "d": "head dimension",
+        "sqrt_d": "\u221ad for scaling"
+      },
+      "equations": [
+        "\\operatorname{DiffAttn}(X) = (\\softmax(\\frac{Q_1 K^{T}_1}{\\sqrt{d}}) - \\lambda~\\softmax(\\frac{Q_2 K^{T}_2}{\\sqrt{d}}))V"
+      ],
+      "quote": null
+    },
+    {
+      "id": "head_rmsnorm",
+      "name": "Head-wise RMSNorm",
+      "kind": "rmsnorm",
+      "description": "RMSNorm applied to each attention head independently before concatenation",
+      "operations": [
+        "rms_normalization"
+      ],
+      "depends_on": [
+        "differential_attention"
+      ],
+      "hyperparameters": {},
+      "equations": [
+        "\\operatorname{LN}(\\cdot)"
+      ],
+      "quote": null
+    },
+    {
+      "id": "groupnorm_scale",
+      "name": "GroupNorm Scale Multiplier",
+      "kind": "other",
+      "description": "Fixed multiplier (1 - \u03bb_init) applied after GroupNorm to align gradient flow with Transformer",
+      "operations": [
+        "scalar_multiplication"
+      ],
+      "depends_on": [
+        "head_rmsnorm",
+        "lambda_parameter"
+      ],
+      "hyperparameters": {
+        "scale": "1 - \u03bb_init"
+      },
+      "equations": [
+        "(1 - \\lambda_{\\text{init}}) \\cdot \\operatorname{LN}( \\mathrm{head}_i )"
+      ],
+      "quote": null
+    },
+    {
+      "id": "multi_head_concat",
+      "name": "Multi-Head Concatenation",
+      "kind": "other",
+      "description": "Concatenate outputs from all attention heads along channel dimension",
+      "operations": [
+        "concatenation"
+      ],
+      "depends_on": [
+        "groupnorm_scale"
+      ],
+      "hyperparameters": {
+        "h": "number of attention heads = d_model / 2d"
+      },
+      "equations": [
+        "\\operatorname{Concat}( \\overline}{{\\mathrm{head}_1}}, \\cdots, \\overline}{{\\mathrm{head}_h}} )"
+      ],
+      "quote": null
+    },
+    {
+      "id": "output_projection",
+      "name": "Output Projection",
+      "kind": "linear_projection",
+      "description": "Final linear projection to map concatenated head outputs back to d_model dimension",
+      "operations": [
+        "linear_projection"
+      ],
+      "depends_on": [
+        "multi_head_concat"
+      ],
+      "hyperparameters": {
+        "W^O": "output projection matrix \u2208 R^(d_model \u00d7 d_model)"
+      },
+      "equations": [
+        "\\operatorname{MultiHead}(X) = \\operatorname{Concat}( \\overline}{{\\mathrm{head}_1}}, \\cdots, \\overline}{{\\mathrm{head}_h}} ) W^O"
+      ],
+      "quote": null
+    },
+    {
+      "id": "multi_head_differential_attention",
+      "name": "Multi-Head Differential Attention",
+      "kind": "multi_head_attention",
+      "description": "Multi-head differential attention with GroupNorm normalization and fixed scale multiplier",
+      "operations": [
+        "differential_attention_per_head",
+        "head_rmsnorm",
+        "groupnorm_scale",
+        "concat",
+        "output_projection"
+      ],
+      "depends_on": [
+        "input_embedding",
+        "positional_encoding",
+        "lambda_parameter"
+      ],
+      "hyperparameters": {
+        "h": "number of heads = d_model / 2d",
+        "d": "head dimension"
+      },
+      "equations": [
+        "\\mathrm{head}_i = \\operatorname{DiffAttn}(X; W_i^Q, W_i^K, W_i^V, \\lambda)",
+        "\\overline}{{\\mathrm{head}_i}} = (1 - \\lambda_{\\text{init}}) \\cdot \\operatorname{LN}( \\mathrm{head}_i )",
+        "\\operatorname{MultiHead}(X) = \\operatorname{Concat}( \\overline}{{\\mathrm{head}_1}}, \\cdots, \\overline}{{\\mathrm{head}_h}} ) W^O"
+      ],
+      "quote": null
+    },
+    {
+      "id": "attention_residual",
+      "name": "Attention Residual Connection",
+      "kind": "residual",
+      "description": "Add differential attention output to input via residual connection",
+      "operations": [
+        "addition"
+      ],
+      "depends_on": [
+        "multi_head_differential_attention",
+        "input_embedding"
+      ],
+      "hyperparameters": {},
+      "equations": [
+        "Y^l = \\operatorname{MultiHead}(\\operatorname{LN}(X^l)) + X^l"
+      ],
+      "quote": null
+    },
+    {
+      "id": "pre_rmsnorm_attention",
+      "name": "Pre-RMSNorm for Attention",
+      "kind": "rmsnorm",
+      "description": "RMSNorm applied to input before differential attention module",
+      "operations": [
+        "rms_normalization"
+      ],
+      "depends_on": [
+        "input_embedding"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_swiglu",
+      "name": "SwiGLU Feed-Forward Network",
+      "kind": "feedforward",
+      "description": "SwiGLU activation function with gated mechanism: SwiGLU(X) = (swish(X W^G) \u2299 X W_1) W_2",
+      "operations": [
+        "gate_projection",
+        "swish_activation",
+        "elementwise_multiplication",
+        "ffn_projection"
+      ],
+      "depends_on": [
+        "attention_residual"
+      ],
+      "hyperparameters": {
+        "W_G": "gate projection \u2208 R^(d_model \u00d7 8/3 d_model)",
+        "W_1": "first FFN projection \u2208 R^(d_model \u00d7 8/3 d_model)",
+        "W_2": "second FFN projection \u2208 R^(8/3 d_model \u00d7 d_model)"
+      },
+      "equations": [
+        "\\operatorname{SwiGLU}(X) = (\\operatorname{swish}(X W^G)\\odot X W_1)W_2"
+      ],
+      "quote": null
+    },
+    {
+      "id": "ffn_residual",
+      "name": "FFN Residual Connection",
+      "kind": "residual",
+      "description": "Add SwiGLU FFN output to input via residual connection",
+      "operations": [
+        "addition"
+      ],
+      "depends_on": [
+        "ffn_swiglu",
+        "attention_residual"
+      ],
+      "hyperparameters": {},
+      "equations": [
+        "X^{l+1} = \\operatorname{SwiGLU}(\\operatorname{LN}(Y^l)) + Y^l"
+      ],
+      "quote": null
+    },
+    {
+      "id": "pre_rmsnorm_ffn",
+      "name": "Pre-RMSNorm for FFN",
+      "kind": "rmsnorm",
+      "description": "RMSNorm applied to attention output before SwiGLU FFN",
+      "operations": [
+        "rms_normalization"
+      ],
+      "depends_on": [
+        "attention_residual"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_layer",
+      "name": "DIFF Transformer Decoder Layer",
+      "kind": "other",
+      "description": "Single DIFF Transformer layer consisting of multi-head differential attention followed by SwiGLU FFN with pre-RMSNorm",
+      "operations": [
+        "pre_rmsnorm",
+        "multi_head_attention",
+        "residual",
+        "pre_rmsnorm",
+        "swiglu_ffn",
+        "residual"
+      ],
+      "depends_on": [
+        "input_embedding"
+      ],
+      "hyperparameters": {
+        "L": "total number of layers"
+      },
+      "equations": [
+        "Y^l = \\operatorname{MultiHead}(\\\\operatorname{LN}(X^l)) + X^l",
+        "X^{l+1} = \\operatorname{SwiGLU}(\\operatorname{LN}(Y^l)) + Y^l"
+      ],
+      "quote": null
+    }
+  ],
+  "tensor_contracts": [
+    {
+      "component_id": "input_embedding",
+      "input_shapes": {
+        "tokens": [
+          "N"
+        ]
+      },
+      "output_shapes": {
+        "X": [
+          "N",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "Given an input sequence x = x1 \u00b7 \u00b7 \u00b7 xN, we pack the input embeddings into X0 = [x1, \u00b7 \u00b7 \u00b7 , xN] \u2208RN\u00d7dmodel, where dmodel represents the hidden dimension of the model.",
+        "section": null
+      }
+    },
+    {
+      "component_id": "query_key_split_projection",
+      "input_shapes": {
+        "X": [
+          "N",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "Q1": [
+          "N",
+          "d"
+        ],
+        "Q2": [
+          "N",
+          "d"
+        ],
+        "K1": [
+          "N",
+          "d"
+        ],
+        "K2": [
+          "N",
+          "d"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "Q1, Q2, K1, K2 \u2208RN\u00d7d, V \u2208RN\u00d72d",
+        "section": null
+      }
+    },
+    {
+      "component_id": "value_projection",
+      "input_shapes": {
+        "X": [
+          "N",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "V": [
+          "N",
+          "2d"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "V \u2208RN\u00d72d",
+        "section": null
+      }
+    },
+    {
+      "component_id": "differential_attention",
+      "input_shapes": {
+        "Q1": [
+          "N",
+          "d"
+        ],
+        "Q2": [
+          "N",
+          "d"
+        ],
+        "K1": [
+          "N",
+          "d"
+        ],
+        "K2": [
+          "N",
+          "d"
+        ],
+        "V": [
+          "N",
+          "2d"
+        ]
+      },
+      "output_shapes": {
+        "O": [
+          "N",
+          "2d"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "DiffAttn(X) = (softmax(Q1KT1/\u221ad) \u2212\u03bb softmax(Q2KT2/\u221ad))V",
+        "section": null
+      }
+    },
+    {
+      "component_id": "multi_head_differential_attention",
+      "input_shapes": {
+        "X": [
+          "N",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "O": [
+          "N",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "O \u2208RN\u00d7dmodel",
+        "section": null
+      }
+    },
+    {
+      "component_id": "decoder_layer",
+      "input_shapes": {
+        "X^l": [
+          "N",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "X^{l+1}": [
+          "N",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": {
+        "text": "Xl = Decoder(Xl\u22121), l \u2208[1, L]",
+        "section": null
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "id": "half_head_count",
+      "description": "DIFF Transformer uses half the number of attention heads compared to standard Transformer to align parameter counts and computational complexity",
+      "kind": "other",
+      "affected_components": [
+        "multi_head_differential_attention"
+      ],
+      "quote": {
+        "text": "We set the number of heads h = dmodel/2d, where d is equal to the head dimension of Transformer. So we can align the parameter counts and computational complexity.",
+        "section": null
+      }
+    },
+    {
+      "id": "pre_rmsnorm",
+      "description": "Pre-RMSNorm (not pre-LayerNorm) is used before attention and FFN modules following LLaMA design",
+      "kind": "normalization_placement",
+      "affected_components": [
+        "pre_rmsnorm_attention",
+        "pre_rmsnorm_ffn"
+      ],
+      "quote": {
+        "text": "We also adopt pre-RMSNorm (Zhang & Sennrich, 2019) and SwiGLU (Shazeer, 2020; Ramachandran et al., 2017) as improvements following LLaMA (Touvron et al., 2023).",
+        "section": null
+      }
+    },
+    {
+      "id": "swiglu_activation",
+      "description": "SwiGLU activation function is used in the FFN instead of ReLU or GELU",
+      "kind": "other",
+      "affected_components": [
+        "ffn_swiglu"
+      ],
+      "quote": {
+        "text": "SwiGLU(X) = (swish(XW G) \u2299XW1)W2, and W G, W1 \u2208Rdmodel\u00d7 8/3 dmodel, W2 \u2208R 8/3 dmodel\u00d7dmodel are learnable matrices.",
+        "section": null
+      }
+    },
+    {
+      "id": "lambda_init_schedule",
+      "description": "\u03bb_init is initialized with exponential decay across layers: \u03bb_init = 0.8 - 0.6 \u00d7 exp(-0.3 \u00d7 (l-1))",
+      "kind": "init_scheme",
+      "affected_components": [
+        "lambda_parameter"
+      ],
+      "quote": {
+        "text": "We empirically find that the setting \u03bbinit = 0.8 \u22120.6 \u00d7 exp(\u22120.3 \u00b7 (l \u22121)) works well in practice, where l \u2208[1, L] represents layer index.",
+        "section": null
+      }
+    },
+    {
+      "id": "groupnorm_scale_multiplier",
+      "description": "Fixed multiplier (1 - \u03bb_init) is applied after GroupNorm to align gradient flow with Transformer",
+      "kind": "scaling",
+      "affected_components": [
+        "groupnorm_scale"
+      ],
+      "quote": {
+        "text": "We use a fixed multiplier (1\u2212\u03bbinit) as the scale of LN(\u00b7) to align the gradients with Transformer.",
+        "section": null
+      }
+    },
+    {
+      "id": "headwise_ln",
+      "description": "LN (RMSNorm) is applied to each head independently before concatenation (GroupNorm semantics)",
+      "kind": "normalization_placement",
+      "affected_components": [
+        "head_rmsnorm"
+      ],
+      "quote": {
+        "text": "LN(\u00b7) uses RMSNorm (Zhang & Sennrich, 2019) for each head, and Concat(\u00b7) concatenates the heads together along the channel dimension.",
+        "section": null
+      }
+    },
+    {
+      "id": "no_bias",
+      "description": "Bias is removed from all linear projections following LLaMA design",
+      "kind": "other",
+      "affected_components": [
+        "query_key_split_projection",
+        "value_projection",
+        "output_projection",
+        "ffn_swiglu"
+      ],
+      "quote": {
+        "text": "The 'Transformer' models include improvements in RMSNorm (Zhang & Sennrich, 2019), SwiGLU (Shazeer, 2020; Ramachandran et al., 2017), and removal of bias.",
+        "section": null
+      }
+    }
+  ],
+  "symbol_table": {
+    "d_model": "model hidden dimension",
+    "d": "head dimension (half of standard to align params)",
+    "h": "number of attention heads = d_model / 2d",
+    "N": "sequence length",
+    "L": "total number of layers",
+    "l": "layer index",
+    "\u03bb": "learnable differential scalar",
+    "\u03bb_init": "initialization constant for \u03bb in (0,1)",
+    "\u03bb_q1, \u03bb_k1, \u03bb_q2, \u03bb_k2": "learnable vectors for \u03bb re-parameterization",
+    "W^Q, W^K, W^V": "projection matrices for query, key, value",
+    "W^O": "output projection matrix",
+    "W_G, W_1, W_2": "SwiGLU FFN projection matrices",
+    "Q_1, Q_2": "first and second group of query vectors",
+    "K_1, K_2": "first and second group of key vectors",
+    "V": "value vectors",
+    "A_1, A_2": "softmax attention maps for Q1/K1 and Q2/K2",
+    "J": "all-ones matrix \u2208 R^(N\u00d7N)",
+    "\u03b8": "RoPE base frequency"
+  },
+  "notes": "DIFF Transformer replaces standard softmax attention with differential attention that computes the difference between two softmax attention maps. This cancels attention noise and promotes sparse attention patterns. Key architectural differences: (1) half the number of heads to maintain parameter parity, (2) doubled Q/K projection output dimension split into two groups, (3) \u03bb is a learnable scalar re-parameterized from vectors, (4) GroupNorm applied per-head with fixed (1-\u03bb_init) scale, (5) pre-RMSNorm and SwiGLU following LLaMA. The differential attention mechanism is compatible with FlashAttention."
+}

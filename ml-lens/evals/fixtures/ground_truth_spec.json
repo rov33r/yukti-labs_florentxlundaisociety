@@ -1,0 +1,61 @@
+{
+  "paper_id": "2410.05258",
+  "paper_title": "Differential Transformer (DIFF Transformer)",
+  "test_config": {
+    "batch_size": 2,
+    "seq_len": 32,
+    "d_model": 256,
+    "n_heads": 4,
+    "n_layers": 2,
+    "vocab_size": 1000
+  },
+  "expected_top_module_keywords": ["diff", "transformer", "model", "lm"],
+  "expected_forward_input": "token_ids of shape (B, T) long tensor",
+  "expected_forward_output_shape": ["B", "T", "vocab_size"],
+  "expected_module_kinds": [
+    "input_embedding",
+    "positional_encoding",
+    "multi_head_attention",
+    "feedforward",
+    "rmsnorm",
+    "residual",
+    "linear_projection"
+  ],
+  "required_module_keywords": {
+    "embedding":          ["embedding", "embed"],
+    "position_encoding":  ["rope", "rotary", "position"],
+    "differential_attn":  ["diff", "differential", "lambda"],
+    "multi_head_attn":    ["multihead", "multi_head", "mha", "attention"],
+    "feedforward":        ["swiglu", "feedforward", "ffn", "mlp", "feed_forward"],
+    "norm":               ["rmsnorm", "layernorm", "norm"],
+    "decoder_layer":      ["layer", "block", "decoder"],
+    "output_head":        ["lm_head", "output", "head", "logits"]
+  },
+  "key_invariants": [
+    {
+      "id": "differential_attention",
+      "check": "attention computes softmax(Q1,K1) - lambda * softmax(Q2,K2)",
+      "keyword_hints": ["lambda", "softmax", "-", "subtract", "diff"]
+    },
+    {
+      "id": "head_rmsnorm",
+      "check": "per-head RMSNorm applied inside attention before output projection",
+      "keyword_hints": ["rmsnorm", "head", "norm"]
+    },
+    {
+      "id": "pre_rmsnorm",
+      "check": "RMSNorm applied before attention and FFN (pre-norm placement)",
+      "keyword_hints": ["rmsnorm", "pre"]
+    },
+    {
+      "id": "causal_masking",
+      "check": "causal mask applied in attention",
+      "keyword_hints": ["causal", "tril", "triu", "mask", "-inf"]
+    },
+    {
+      "id": "residual_connections",
+      "check": "residual added after attention and FFN blocks",
+      "keyword_hints": ["+", "residual", "x +"]
+    }
+  ]
+}
