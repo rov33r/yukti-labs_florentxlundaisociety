@@ -15,57 +15,50 @@ ml-lens/
 ## Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.10+
-- Node.js 18+
-- API Keys: ANTHROPIC_API_KEY, E2B_API_KEY, LANGFUSE_KEY
+- Python 3.10+ (required)
+- Node.js 18+ (required)
+- API Keys: ANTHROPIC_API_KEY, E2B_API_KEY, LANGFUSE_KEY (optional for now)
 
-### Setup
+### Running Locally (2 Terminals)
 
-1. Clone the repo
+**Terminal 1 — Backend Server:**
 ```bash
-git clone https://github.com/rov33r/yukti-labs_florentxlundaisociety.git
-cd yukti-labs_florentxlundaisociety
+cd ml-lens/backend
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
 ```
+Backend runs on: http://localhost:8000
 
-2. Copy environment variables
+**Terminal 2 — Frontend Server:**
+```bash
+cd ml-lens/frontend
+npm install
+npm run dev
+```
+Frontend runs on: http://localhost:5173
+
+Visit http://localhost:5173 to see the dashboard!
+
+### Using Docker Compose (Optional)
 ```bash
 cp .env.example .env
-# Add your API keys to .env
-```
-
-3. Start services
-```bash
 docker-compose up
 ```
-
 - Backend: http://localhost:8000
 - E2B Sandbox: http://localhost:4242
 
 ## Development Workflow
 
 ### Creating a Feature
-1. Create a branch: `git checkout -b feature/your-feature`
-2. Make changes
-3. Open a PR → review → merge to main
+1. Create branch: `git checkout -b feature/your-feature`
+2. Make changes & test locally
+3. Push & create PR for review: `git push origin feature/your-feature`
+4. Review together, then merge to main
 
-### Backend Development
-```bash
-cd ml-lens/backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-### Frontend Development
-```bash
-cd ml-lens/frontend
-npm install
-npm run dev
-```
-
-### Running Evaluations
+### Running Tests
 ```bash
 cd ml-lens/evals
+pip install -r requirements.txt
 pytest
 ```
 
