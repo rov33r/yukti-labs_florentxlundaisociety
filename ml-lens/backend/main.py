@@ -83,16 +83,56 @@ class ChatResponse(BaseModel):
     content: str
 
 
+_PAPER_CONTEXT = """
+## Active paper: Attention Is All You Need
+**Authors:** Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin (Google Brain / Research, 2017)
+**arXiv:** 1706.03762
+
+### Architecture overview
+The Transformer replaces recurrence and convolutions entirely with self-attention.
+It follows an encoder-decoder structure where both sides stack N=6 identical layers.
+
+### Default hyperparameters (base model)
+| Parameter | Value |
+|-----------|-------|
+| d_model (embedding / residual dim) | 512 |
+| num_heads | 8 |
+| d_k = d_v (per-head key/value dim) | 64 (= d_model / num_heads) |
+| d_ff (feed-forward hidden dim) | 2048 |
+| num_encoder_layers | 6 |
+| num_decoder_layers | 6 |
+| dropout | 0.1 |
+| max_seq_len | 512 |
+| vocab_size (WMT EN-DE) | ~37 000 |
+| Activation | ReLU in FFN |
+
+### Key components and what the paper says
+- **Input Embedding:** Weights are shared with the pre-softmax linear layer. Multiplied by √d_model to prevent the embeddings from being too small relative to positional encoding.
+- **Positional Encoding:** Fixed sinusoidal encoding (not learned). Uses sin for even indices, cos for odd. Allows the model to generalise to sequence lengths unseen during training.
+- **Multi-Head Attention:** Splits queries, keys, values into h=8 heads, each of dimension d_k=64. Applies scaled dot-product attention (divides by √d_k to stabilise gradients), then concatenates and projects. Three variants: encoder self-attention (full), decoder masked self-attention (causal), and cross-attention (decoder queries over encoder output).
+- **Masked Attention (decoder):** Sets all positions i > j to -∞ before softmax, ensuring position j cannot attend to future positions. Critical for autoregressive generation.
+- **Feed-Forward Network:** Two linear transformations with ReLU: FFN(x) = max(0, xW₁+b₁)W₂+b₂. d_ff=2048 is 4× d_model. Applied identically and independently to each position.
+- **Residual connections + Layer Norm:** Every sub-layer output is LayerNorm(x + Sublayer(x)). Stabilises training in deep stacks.
+- **Linear + Softmax:** The decoder output is projected to vocab_size logits via a weight-tied linear layer (shared with embedding). Temperature is not used at training time but can be applied at inference.
+
+### Training details
+- Optimizer: Adam with β₁=0.9, β₂=0.98, ε=1e-9
+- Learning rate schedule: warmup for 4 000 steps then inverse square root decay
+- Label smoothing: ε_ls = 0.1
+- Trained on 8× P100 GPUs for 12 hours (base) / 3.5 days (big model)
+"""
+
 CHAT_SYSTEM_PROMPT = """You are an ML model explainability assistant embedded in Yukti, \
 an interactive ML analysis platform. The user is exploring a sandbox that visualises \
-ML model architectures — currently a Transformer (Attention Is All You Need). \
-Help them understand how components work, why the model behaves the way it does, \
-and the intuition behind architectural decisions. \
+the architecture from the active paper below. Answer questions grounded in what the \
+paper actually says — cite specific values (e.g. d_model=512, h=8) when relevant. \
 Keep responses focused and moderately detailed: cover the key point and one supporting \
 reason or example, then stop. Aim for 3-5 sentences or a short list — never more than \
 two short paragraphs. Use plain language and analogies where helpful. \
 Format with markdown (bold key terms, short bullet lists where appropriate) but avoid \
-large walls of text or exhaustive breakdowns."""
+large walls of text or exhaustive breakdowns.
+
+{paper_context}""".format(paper_context=_PAPER_CONTEXT)
 
 @app.get("/health")
 async def health():
