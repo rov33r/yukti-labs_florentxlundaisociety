@@ -1080,6 +1080,8 @@ input:disabled {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   background: #0F1C2E;
   color: white;
 }
@@ -1119,12 +1121,12 @@ input:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   text-align: center;
-  padding: 48px 24px 32px;
+  padding: 0 24px 32px;
   gap: 16px;
   transition: padding 0.4s ease, gap 0.4s ease;
   flex-shrink: 0;
+  width: 100%;
 }
 
 .landing-hero--compact {
@@ -1173,14 +1175,11 @@ input:disabled {
 
 /* Centre stage — fixed area, never grows */
 .landing-center {
-  flex: 1;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0 24px 48px;
-  overflow: hidden;
+  padding: 0 24px;
 }
 
 /* Input */
@@ -1206,7 +1205,7 @@ input:disabled {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.landing-input::placeholder { color: rgba(255,255,255,0.32); }
+.landing-input::placeholder { color: rgba(255,255,255,0.55); }
 
 .landing-input:focus {
   outline: none;
