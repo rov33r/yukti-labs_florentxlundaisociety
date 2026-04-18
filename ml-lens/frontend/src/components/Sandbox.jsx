@@ -101,43 +101,23 @@ export default function Sandbox() {
   )
 
   return (
-    <div className="sandbox-page">
-      <div className="sandbox-header">
-        <div>
-          <h2>Component Sandbox</h2>
-          <p className="page-subtitle">Attention Is All You Need — Transformer architecture</p>
-        </div>
-        <div className="sandbox-badges">
-          <span className="badge badge-completed">Mock Data</span>
-        </div>
-      </div>
-
-      <div className="sandbox-legend">
-        <span className="legend-item"><span className="legend-dot teal"></span>Encoder</span>
-        <span className="legend-item"><span className="legend-dot orange"></span>Decoder</span>
-        <span className="legend-item"><span className="legend-dot gray"></span>Sub-layer</span>
-        <span className="legend-item"><span className="legend-line animated"></span>Data flow</span>
-        <span className="legend-item"><span className="legend-line cross"></span>Cross attention</span>
-      </div>
-
-      <div className="flow-container">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
-        >
-          <Controls />
-          <MiniMap
-            nodeStrokeColor="#0D9488"
-            nodeColor="#F0FDFA"
-            maskColor="rgba(250, 250, 250, 0.8)"
-          />
-          <Background color="#E5E5E5" gap={16} />
-        </ReactFlow>
-      </div>
+    <div className="sandbox-canvas">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        fitView
+      >
+        <Controls />
+        <MiniMap
+          nodeStrokeColor="#0D9488"
+          nodeColor="#F0FDFA"
+          maskColor="rgba(250, 250, 250, 0.8)"
+        />
+        <Background color="#E5E5E5" gap={16} />
+      </ReactFlow>
     </div>
   )
 }
