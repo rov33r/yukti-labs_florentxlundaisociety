@@ -64,11 +64,11 @@ const NODE_INFO = {
 }
 
 const TYPE_BADGE = {
-  Input:    { bg: '#F0FDFA', color: '#0F766E', border: '#99F6E4' },
-  Encoder:  { bg: '#F0FDFA', color: '#0F766E', border: '#0D9488' },
-  Decoder:  { bg: '#FFF7ED', color: '#C2410C', border: '#F97316' },
-  'Sub-layer': { bg: '#F5F5F5', color: '#4B5563', border: '#D1D5DB' },
-  Output:   { bg: '#F0FDFA', color: '#0F766E', border: '#0D9488' },
+  Input:       { bg: '#EEF3FA', color: '#1E3A5F', border: '#D6E4F0' },
+  Encoder:     { bg: '#EEF3FA', color: '#1E3A5F', border: '#1E3A5F' },
+  Decoder:     { bg: '#FFF7ED', color: '#C2410C', border: '#F97316' },
+  'Sub-layer': { bg: '#F5F5F5', color: '#4B5E78', border: '#D6E4F0' },
+  Output:      { bg: '#EEF3FA', color: '#1E3A5F', border: '#1E3A5F' },
 }
 
 export default function NodeInfoPopup({ node, onClose }) {
