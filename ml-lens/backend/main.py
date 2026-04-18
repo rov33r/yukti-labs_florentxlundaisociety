@@ -131,7 +131,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         resp = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": "meta-llama/llama-3.1-8b-instruct:free", "messages": messages},
+            json={"model": "google/gemma-3-27b-it", "messages": messages},
         )
 
     if resp.status_code != 200:
