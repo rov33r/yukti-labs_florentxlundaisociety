@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from schema.validator import manifest_json_schema
 from schema.lock import lock_manifest, LockedManifest
@@ -13,6 +16,7 @@ from schema.models import (
     TensorContract,
     Invariant,
 )
+from agent import run_traversal, TraversalTrace
 
 app = FastAPI(title="ML Lens API")
 
@@ -65,6 +69,19 @@ async def get_evaluations():
 @app.post("/api/evaluations", response_model=Evaluation)
 async def create_evaluation(evaluation: Evaluation):
     return {"id": 4, **evaluation.model_dump(), "created_at": datetime.now().isoformat()}
+
+
+# ── Traversal Agent endpoint ─────────────────────────────────────────────────
+
+@app.post("/api/traverse", response_model=TraversalTrace)
+async def traverse_manifest(manifest: ComponentManifest):
+    """Run the traversal agent over a ComponentManifest and return the trace."""
+    try:
+        return await run_traversal(manifest)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Traversal agent error: {exc}")
 
 
 # ── Schema Contract endpoints ────────────────────────────────────────────────

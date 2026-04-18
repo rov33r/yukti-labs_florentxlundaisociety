@@ -497,6 +497,146 @@ body {
   font-weight: 600;
 }
 
+/* View toggle */
+.view-toggle {
+  display: flex;
+  border: 1px solid #E5E5E5;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.toggle-btn {
+  background: white;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #6B6B6B;
+  transition: all 0.15s ease;
+}
+
+.toggle-btn.active {
+  background: #0D9488;
+  color: white;
+  font-weight: 600;
+}
+
+/* Traversal panel */
+.traversal-panel {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  min-height: 200px;
+}
+
+.traversal-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.traversal-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid #E5E5E5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  color: #374151;
+}
+
+.traversal-step-btn:hover {
+  border-color: #0D9488;
+  color: #0D9488;
+}
+
+.traversal-step-btn.active {
+  background: #F0FDF9;
+  border-color: #0D9488;
+  color: #0D9488;
+  font-weight: 600;
+}
+
+.step-order {
+  background: #E5E7EB;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.traversal-step-btn.active .step-order {
+  background: #0D9488;
+  color: white;
+}
+
+.step-name {
+  flex: 1;
+}
+
+.traversal-detail {
+  background: white;
+  border: 1px solid #E5E5E5;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-bottom: 4px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.detail-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #0D9488;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 80px;
+  padding-top: 2px;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.detail-insight {
+  font-size: 13px;
+  color: #6B7280;
+  font-style: italic;
+  background: #F9FAFB;
+  border-radius: 6px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
 /* Tab nav */
 .tab-nav {
   display: flex;
