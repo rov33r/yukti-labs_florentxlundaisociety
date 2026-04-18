@@ -1060,6 +1060,21 @@ input:disabled {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes land-fade-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes land-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes land-scale-in {
+  from { opacity: 0; transform: scale(0.6) rotate(-30deg); }
+  to   { opacity: 0.9; transform: scale(1) rotate(0deg); }
+}
+
 .landing-page {
   height: 100vh;
   overflow: hidden;
@@ -1076,6 +1091,8 @@ input:disabled {
   align-items: center;
   padding: 20px 40px;
   flex-shrink: 0;
+  animation: land-fade-down 0.5s ease both;
+  animation-delay: 0ms;
 }
 
 .landing-nav-logo {
@@ -1116,12 +1133,13 @@ input:disabled {
 }
 
 .landing-logo-icon {
-  animation-duration: 12s;
+  animation: land-scale-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both, asterisk-spin 12s linear infinite;
+  animation-delay: 100ms, 100ms;
   transition: width 0.4s ease, height 0.4s ease;
 }
 
 .landing-logo-icon--fast {
-  animation-duration: 2s;
+  animation: asterisk-spin 2s linear infinite;
 }
 
 .landing-title {
@@ -1133,6 +1151,8 @@ input:disabled {
   line-height: 1;
   margin: 0;
   transition: font-size 0.4s ease;
+  animation: land-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 280ms;
 }
 
 .landing-title--small {
@@ -1147,6 +1167,8 @@ input:disabled {
   max-width: 440px;
   line-height: 1.6;
   margin: 0;
+  animation: land-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 420ms;
 }
 
 /* Centre stage — fixed area, never grows */
@@ -1166,7 +1188,8 @@ input:disabled {
   gap: 12px;
   width: 100%;
   max-width: 580px;
-  animation: card-enter 0.3s ease;
+  animation: land-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 560ms;
 }
 
 .landing-input {
