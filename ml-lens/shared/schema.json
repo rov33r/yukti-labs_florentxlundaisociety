@@ -1,29 +1,327 @@
 {
-  "definitions": {
-    "Request": {
-      "type": "object",
+  "$defs": {
+    "Component": {
       "properties": {
         "id": {
+          "description": "Unique snake_case identifier, e.g. 'multi_head_attention'",
+          "title": "Id",
           "type": "string"
         },
-        "prompt": {
-          "type": "string"
-        }
-      }
-    },
-    "Response": {
-      "type": "object",
-      "properties": {
-        "id": {
+        "name": {
+          "description": "Human-readable name",
+          "title": "Name",
           "type": "string"
         },
-        "output": {
+        "kind": {
+          "enum": [
+            "input_embedding",
+            "positional_encoding",
+            "linear_projection",
+            "attention",
+            "multi_head_attention",
+            "feedforward",
+            "layernorm",
+            "rmsnorm",
+            "residual",
+            "softmax",
+            "masking",
+            "output_head",
+            "other"
+          ],
+          "title": "Kind",
           "type": "string"
         },
-        "metadata": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "operations": {
+          "description": "Ordered list of ops this component performs",
+          "items": {
+            "type": "string"
+          },
+          "title": "Operations",
+          "type": "array"
+        },
+        "depends_on": {
+          "description": "IDs of components this depends on",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "hyperparameters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Symbolic hyperparameter names and meanings",
+          "title": "Hyperparameters",
           "type": "object"
+        },
+        "equations": {
+          "description": "LaTeX equations from the paper",
+          "items": {
+            "type": "string"
+          },
+          "title": "Equations",
+          "type": "array"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperQuote"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
-      }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "description"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Invariant": {
+      "properties": {
+        "id": {
+          "description": "Unique snake_case identifier",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "weight_tying",
+            "causal_mask",
+            "residual_connection",
+            "init_scheme",
+            "normalization_placement",
+            "scaling",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "affected_components": {
+          "description": "Component IDs this invariant applies to",
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Components",
+          "type": "array"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperQuote"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "kind",
+        "affected_components"
+      ],
+      "title": "Invariant",
+      "type": "object"
+    },
+    "PaperMetadata": {
+      "properties": {
+        "arxiv_id": {
+          "title": "Arxiv Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "authors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "abstract": {
+          "title": "Abstract",
+          "type": "string"
+        },
+        "published": {
+          "title": "Published",
+          "type": "string"
+        },
+        "pdf_url": {
+          "title": "Pdf Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arxiv_id",
+        "title",
+        "authors",
+        "abstract",
+        "published",
+        "pdf_url"
+      ],
+      "title": "PaperMetadata",
+      "type": "object"
+    },
+    "PaperQuote": {
+      "properties": {
+        "text": {
+          "description": "Verbatim excerpt from the paper",
+          "title": "Text",
+          "type": "string"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Section heading where this appears",
+          "title": "Section"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "PaperQuote",
+      "type": "object"
+    },
+    "TensorContract": {
+      "properties": {
+        "component_id": {
+          "description": "ID of the component this contract belongs to",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "input_shapes": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Symbolic input shapes, e.g. {'x': ['B', 'T', 'd_model']}",
+          "title": "Input Shapes",
+          "type": "object"
+        },
+        "output_shapes": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "Symbolic output shapes",
+          "title": "Output Shapes",
+          "type": "object"
+        },
+        "dtype": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Expected dtype, e.g. 'float32'",
+          "title": "Dtype"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperQuote"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "component_id",
+        "input_shapes",
+        "output_shapes"
+      ],
+      "title": "TensorContract",
+      "type": "object"
     }
-  }
+  },
+  "properties": {
+    "paper": {
+      "$ref": "#/$defs/PaperMetadata"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/Component"
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "tensor_contracts": {
+      "items": {
+        "$ref": "#/$defs/TensorContract"
+      },
+      "title": "Tensor Contracts",
+      "type": "array"
+    },
+    "invariants": {
+      "items": {
+        "$ref": "#/$defs/Invariant"
+      },
+      "title": "Invariants",
+      "type": "array"
+    },
+    "symbol_table": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Map of symbol -> meaning, e.g. {'d_model': 'model hidden dimension'}",
+      "title": "Symbol Table",
+      "type": "object"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "paper",
+    "components"
+  ],
+  "title": "ComponentManifest",
+  "type": "object"
 }
