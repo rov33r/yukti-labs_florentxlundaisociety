@@ -26,10 +26,17 @@ async def _run_with_claude(
     deltas: list[HyperparamDelta],
     paper_id: str,
 ) -> SchemaDiff:
-    """Use Claude API to analyze the diff."""
-    from anthropic import Anthropic
+    """Use OpenRouter Claude API to analyze the diff."""
+    from openai import OpenAI
 
-    client = Anthropic()
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("OPENROUTER_API_KEY environment variable not set")
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
 
     # Build user message with both traces and deltas
     user_message = f"""
@@ -45,14 +52,14 @@ Hyperparameter deltas:
 Analyze the tensor shape changes and explain which components changed, why, and which invariants hold or break.
 """
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="claude-3.5-sonnet",
         max_tokens=4096,
         system=DIFF_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
 
-    text = response.content[0].text
+    text = response.choices[0].message.content
 
     # Strip markdown fences if present
     text = re.sub(r"^```json\n?", "", text)
