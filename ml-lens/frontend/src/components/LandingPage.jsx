@@ -12,7 +12,7 @@ function parseArxivId(raw) {
 }
 
 export default function LandingPage({ onEnter }) {
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState('1706.03762')
   const [phase, setPhase] = useState('idle') // idle | loading | done | error
   const [pipelineDone, setPipelineDone] = useState(false)
   const [result, setResult] = useState(null)
