@@ -84,7 +84,7 @@ export default function Sandbox() {
     }))
   }, [])
 
-  // Apply a dashed border to any node whose params differ from defaults
+  // Amber glow on any node whose params differ from defaults
   const derivedNodes = useMemo(() =>
     nodes.map((node) => {
       if (!isModified(node.id, hyperparams[node.id])) return node
@@ -92,8 +92,7 @@ export default function Sandbox() {
         ...node,
         style: {
           ...node.style,
-          borderStyle: 'dashed',
-          opacity: 0.9,
+          boxShadow: '0 0 0 2px #F59E0B, 0 4px 12px rgba(245, 158, 11, 0.25)',
         },
       }
     }),

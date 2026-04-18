@@ -733,6 +733,31 @@ input:disabled {
   background: white;
 }
 
+.param-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.param-changed {
+  border-color: #F59E0B !important;
+  background: #FFFBEB !important;
+  color: #92400E !important;
+}
+
+.param-label-changed {
+  color: #92400E;
+  font-weight: 600;
+}
+
+.param-default-hint {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 10px;
+  color: #9CA3AF;
+  font-style: italic;
+}
+
 .params-warnings {
   display: flex;
   flex-direction: column;

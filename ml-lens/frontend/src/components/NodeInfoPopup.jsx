@@ -72,38 +72,50 @@ const TYPE_BADGE = {
   Output:      { bg: '#EEF3FA', color: '#1E3A5F', border: '#1E3A5F' },
 }
 
-function ParamField({ meta, value, onChange }) {
+function ParamField({ meta, value, defaultValue, onChange }) {
+  const changed = value !== defaultValue
+
   if (meta.type === 'select') {
     return (
-      <select
-        className="param-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {meta.options.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
+      <div className="param-field-wrap">
+        <select
+          className={`param-select ${changed ? 'param-changed' : ''}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {meta.options.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+        {changed && (
+          <span className="param-default-hint">default: {defaultValue}</span>
+        )}
+      </div>
     )
   }
 
   return (
-    <div className="param-input-group">
-      <input
-        className="param-input"
-        type="number"
-        min={meta.min}
-        max={meta.max}
-        step={meta.step}
-        value={value}
-        onChange={(e) => {
-          const parsed = meta.type === 'float'
-            ? parseFloat(e.target.value)
-            : parseInt(e.target.value, 10)
-          if (!isNaN(parsed)) onChange(parsed)
-        }}
-      />
-      {meta.unit && <span className="param-unit">{meta.unit}</span>}
+    <div className="param-field-wrap">
+      <div className="param-input-group">
+        <input
+          className={`param-input ${changed ? 'param-changed' : ''}`}
+          type="number"
+          min={meta.min}
+          max={meta.max}
+          step={meta.step}
+          value={value}
+          onChange={(e) => {
+            const parsed = meta.type === 'float'
+              ? parseFloat(e.target.value)
+              : parseInt(e.target.value, 10)
+            if (!isNaN(parsed)) onChange(parsed)
+          }}
+        />
+        {meta.unit && <span className="param-unit">{meta.unit}</span>}
+      </div>
+      {changed && (
+        <span className="param-default-hint">default: {defaultValue}</span>
+      )}
     </div>
   )
 }
@@ -157,16 +169,23 @@ export default function NodeInfoPopup({ node, params, onParamChange, onParamRese
             </div>
 
             <div className="params-grid">
-              {paramMeta.map((meta) => (
-                <React.Fragment key={meta.key}>
-                  <label className="param-label">{meta.label}</label>
-                  <ParamField
-                    meta={meta}
-                    value={params?.[meta.key] ?? PARAM_DEFAULTS[node.id][meta.key]}
-                    onChange={(val) => onParamChange(node.id, meta.key, val)}
-                  />
-                </React.Fragment>
-              ))}
+              {paramMeta.map((meta) => {
+                const defaultValue = PARAM_DEFAULTS[node.id][meta.key]
+                const currentValue = params?.[meta.key] ?? defaultValue
+                return (
+                  <React.Fragment key={meta.key}>
+                    <label className={`param-label ${currentValue !== defaultValue ? 'param-label-changed' : ''}`}>
+                      {meta.label}
+                    </label>
+                    <ParamField
+                      meta={meta}
+                      value={currentValue}
+                      defaultValue={defaultValue}
+                      onChange={(val) => onParamChange(node.id, meta.key, val)}
+                    />
+                  </React.Fragment>
+                )
+              })}
             </div>
 
             {warnings.length > 0 && (
