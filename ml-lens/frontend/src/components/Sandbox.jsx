@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import {
   ReactFlow,
-  MiniMap,
   Controls,
   Background,
   Panel,
@@ -78,12 +77,7 @@ export default function Sandbox() {
         fitView
       >
         <Controls />
-        <MiniMap
-          nodeStrokeColor="#1E3A5F"
-          nodeColor="#EEF3FA"
-          maskColor="rgba(250, 250, 250, 0.8)"
-        />
-        <Background color="#E5E5E5" gap={16} />
+<Background color="#E5E5E5" gap={16} />
 
         <Panel position="bottom-right">
           <div className="sandbox-legend">
