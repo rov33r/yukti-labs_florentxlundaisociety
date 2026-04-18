@@ -7,14 +7,13 @@ const API_BASE = 'http://localhost:8000'
 const ARXIV_PATTERN = /(?:arxiv\.org\/(?:abs|pdf)\/|^)([\d]{4}\.[\d]{4,5}(?:v\d+)?|[a-z\-]+\/\d{7})$/i
 
 function parseArxivId(raw) {
-  const trimmed = raw.trim()
-  const m = trimmed.match(ARXIV_PATTERN)
-  return m ? m[1] : trimmed
+  const m = raw.trim().match(ARXIV_PATTERN)
+  return m ? m[1] : raw.trim()
 }
 
 export default function LandingPage({ onEnter }) {
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [phase, setPhase] = useState('idle') // idle | loading | done | error
   const [pipelineDone, setPipelineDone] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -23,9 +22,9 @@ export default function LandingPage({ onEnter }) {
   const handleSubmit = async (e) => {
     e?.preventDefault()
     const raw = input.trim()
-    if (!raw || loading) return
+    if (!raw || phase === 'loading') return
 
-    setLoading(true)
+    setPhase('loading')
     setError(null)
     setResult(null)
     setPipelineDone(false)
@@ -44,23 +43,18 @@ export default function LandingPage({ onEnter }) {
 
       const data = await res.json()
       setPipelineDone(true)
-      // Small pause so the final "done" state is visible before showing result
       setTimeout(() => {
         setResult(data)
-        setLoading(false)
-      }, 800)
+        setPhase('done')
+      }, 900)
     } catch (err) {
       setError(err.message)
-      setLoading(false)
-      setPipelineDone(false)
+      setPhase('error')
     }
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSubmit()
-  }
-
   const handleReset = () => {
+    setPhase('idle')
     setResult(null)
     setError(null)
     setInput('')
@@ -68,26 +62,36 @@ export default function LandingPage({ onEnter }) {
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
+  const isLoading = phase === 'loading'
+
   return (
     <div className="landing-page">
-      {/* Nav bar */}
+      {/* Nav */}
       <nav className="landing-nav">
         <span className="landing-nav-logo">Yukti</span>
-        <button className="btn-ghost" onClick={onEnter}>
-          Open Sandbox →
-        </button>
+        <button className="btn-ghost" onClick={onEnter}>Open Sandbox →</button>
       </nav>
 
-      {/* Hero */}
-      <section className="landing-hero">
-        <AsteriskSpinner size={72} color="white" className="landing-logo-icon" />
-        <h1 className="landing-title">Yukti</h1>
-        <p className="landing-subtitle">
-          Understand ML architectures through interactive exploration
-        </p>
+      {/* Hero — collapses when loading or done */}
+      <section className={`landing-hero ${isLoading || phase === 'done' ? 'landing-hero--compact' : ''}`}>
+        <AsteriskSpinner
+          size={isLoading ? 36 : 72}
+          color="white"
+          className={`landing-logo-icon ${isLoading ? 'landing-logo-icon--fast' : ''}`}
+        />
+        <h1 className={`landing-title ${isLoading || phase === 'done' ? 'landing-title--small' : ''}`}>
+          Yukti
+        </h1>
+        {!isLoading && phase === 'idle' && (
+          <p className="landing-subtitle">
+            Understand ML architectures through interactive exploration
+          </p>
+        )}
+      </section>
 
-        {/* arXiv input */}
-        {!loading && !result && (
+      {/* Centre stage — input / pipeline / result */}
+      <div className="landing-center">
+        {phase === 'idle' && (
           <form className="landing-input-wrap" onSubmit={handleSubmit}>
             <input
               ref={inputRef}
@@ -96,46 +100,33 @@ export default function LandingPage({ onEnter }) {
               placeholder="arXiv ID or URL — e.g. 1706.03762"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
               autoFocus
             />
-            <button
-              className="btn-primary landing-submit-btn"
-              type="submit"
-              disabled={!input.trim()}
-            >
+            <button className="btn-primary landing-submit-btn" type="submit" disabled={!input.trim()}>
               Research paper
             </button>
           </form>
         )}
 
-        {error && !loading && (
+        {isLoading && (
+          <PipelineProgress done={pipelineDone} />
+        )}
+
+        {phase === 'error' && (
           <div className="landing-error">
             <p>{error}</p>
             <button className="btn-ghost" onClick={handleReset}>Try again</button>
           </div>
         )}
-      </section>
 
-      {/* Pipeline progress */}
-      {loading && (
-        <section className="landing-pipeline-section">
-          <div className="landing-pipeline-header">
-            <AsteriskSpinner size={18} color="#EEF3FA" />
-            <span className="landing-pipeline-heading">Processing paper</span>
-          </div>
-          <PipelineProgress done={pipelineDone} />
-        </section>
-      )}
-
-      {/* Result */}
-      {result && (
-        <section className="landing-result">
+        {phase === 'done' && result && (
           <div className="landing-result-card">
             <div className="landing-result-meta">
-              <span className="landing-result-arxiv">{result.manifest?.paper?.arxiv_id ?? result.paper?.arxiv_id}</span>
+              <span className="landing-result-arxiv">
+                {result.manifest?.paper?.arxiv_id ?? result.paper?.arxiv_id}
+              </span>
               <span className="landing-result-badge">
-                {(result.manifest?.components ?? result.components ?? []).length} components extracted
+                {(result.manifest?.components ?? result.components ?? []).length} components
               </span>
             </div>
             <h2 className="landing-result-title">
@@ -144,24 +135,18 @@ export default function LandingPage({ onEnter }) {
             <p className="landing-result-authors">
               {(result.manifest?.paper?.authors ?? result.paper?.authors ?? []).join(', ')}
             </p>
-
             <div className="landing-result-components">
               {(result.manifest?.components ?? result.components ?? []).map((c) => (
                 <span key={c.id} className="landing-component-chip">{c.name}</span>
               ))}
             </div>
-
             <div className="landing-result-actions">
-              <button className="btn-primary" onClick={onEnter}>
-                Open in Sandbox →
-              </button>
-              <button className="btn-ghost" onClick={handleReset}>
-                Research another paper
-              </button>
+              <button className="btn-primary" onClick={onEnter}>Open in Sandbox →</button>
+              <button className="btn-ghost" onClick={handleReset}>Research another</button>
             </div>
           </div>
-        </section>
-      )}
+        )}
+      </div>
     </div>
   )
 }

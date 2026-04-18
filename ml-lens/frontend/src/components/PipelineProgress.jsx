@@ -34,57 +34,55 @@ const STAGES = [
   },
 ]
 
-// Status: 'pending' | 'active' | 'done'
-function buildInitialState() {
-  return STAGES.map((s, i) => ({ ...s, status: i === 0 ? 'active' : 'pending' }))
-}
-
 export default function PipelineProgress({ done }) {
-  const [stages, setStages] = useState(buildInitialState)
+  const [activeIdx, setActiveIdx] = useState(0)
 
   useEffect(() => {
     if (done) {
-      setStages((prev) => prev.map((s) => ({ ...s, status: 'done' })))
+      setActiveIdx(STAGES.length - 1)
       return
     }
 
-    // Advance stages based on cumulative estimated durations
+    setActiveIdx(0)
     let cumulative = 0
-    const timers = STAGES.map((stage, idx) => {
+    const timers = STAGES.slice(0, -1).map((stage, idx) => {
       cumulative += stage.estimatedMs
-      return setTimeout(() => {
-        setStages((prev) =>
-          prev.map((s, i) => {
-            if (i < idx + 1) return { ...s, status: 'done' }
-            if (i === idx + 1) return { ...s, status: 'active' }
-            return s
-          })
-        )
-      }, cumulative)
+      return setTimeout(() => setActiveIdx(idx + 1), cumulative)
     })
 
     return () => timers.forEach(clearTimeout)
   }, [done])
 
+  const stage = STAGES[activeIdx]
+  const isLast = activeIdx === STAGES.length - 1
+
   return (
-    <div className="pipeline-progress">
-      {stages.map((stage) => (
-        <div key={stage.id} className={`pipeline-stage pipeline-stage--${stage.status}`}>
-          <div className="pipeline-stage-icon">
-            {stage.status === 'done' ? (
-              <span className="pipeline-check">✓</span>
-            ) : stage.status === 'active' ? (
-              <AsteriskSpinner size={16} color="#1E3A5F" />
-            ) : (
-              <span className="pipeline-dot" />
-            )}
-          </div>
-          <div className="pipeline-stage-body">
-            <span className="pipeline-stage-label">{stage.label}</span>
-            <span className="pipeline-stage-desc">{stage.desc}</span>
-          </div>
+    <div className="pipeline-track">
+      {/* Step counter */}
+      <div className="pipeline-counter">
+        {STAGES.map((_, i) => (
+          <span
+            key={i}
+            className={`pipeline-pip ${i < activeIdx ? 'done' : i === activeIdx ? 'active' : ''}`}
+          />
+        ))}
+      </div>
+
+      {/* Single animated card — key forces remount + animation on stage change */}
+      <div key={stage.id} className={`pipeline-card ${done && isLast ? 'pipeline-card--done' : ''}`}>
+        <div className="pipeline-card-icon">
+          {done && isLast ? (
+            <span className="pipeline-check">✓</span>
+          ) : (
+            <AsteriskSpinner size={20} color="white" />
+          )}
         </div>
-      ))}
+        <div className="pipeline-card-body">
+          <span className="pipeline-card-label">{stage.label}</span>
+          <span className="pipeline-card-desc">{stage.desc}</span>
+        </div>
+        <span className="pipeline-card-step">{activeIdx + 1} / {STAGES.length}</span>
+      </div>
     </div>
   )
 }

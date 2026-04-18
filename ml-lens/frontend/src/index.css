@@ -1055,8 +1055,14 @@ input:disabled {
 }
 
 /* ── Landing Page ──────────────────────────────────────── */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .landing-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: #0F1C2E;
@@ -1077,50 +1083,81 @@ input:disabled {
   font-size: 18px;
   font-weight: 700;
   color: white;
-  letter-spacing: -0.3px;
 }
 
 .landing-nav .btn-ghost {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.75);
   font-size: 13px;
 }
 
 .landing-nav .btn-ghost:hover {
   border-color: white;
   color: white;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255,255,255,0.07);
 }
 
-/* Hero */
+/* Hero — shrinks when loading or done */
 .landing-hero {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 24px 60px;
   text-align: center;
-  gap: 20px;
+  padding: 48px 24px 32px;
+  gap: 16px;
+  transition: padding 0.4s ease, gap 0.4s ease;
+  flex-shrink: 0;
+}
+
+.landing-hero--compact {
+  padding: 24px 24px 16px;
+  gap: 10px;
+}
+
+.landing-logo-icon {
+  animation-duration: 12s;
+  transition: width 0.4s ease, height 0.4s ease;
+}
+
+.landing-logo-icon--fast {
+  animation-duration: 2s;
 }
 
 .landing-title {
   font-family: 'Poppins', Arial, sans-serif;
-  font-size: clamp(64px, 12vw, 120px);
+  font-size: clamp(56px, 10vw, 108px);
   font-weight: 700;
   color: white;
   letter-spacing: -3px;
   line-height: 1;
   margin: 0;
+  transition: font-size 0.4s ease;
+}
+
+.landing-title--small {
+  font-size: clamp(28px, 5vw, 42px);
+  letter-spacing: -1px;
 }
 
 .landing-subtitle {
   font-family: 'Lora', Georgia, serif;
-  font-size: clamp(16px, 2vw, 20px);
-  color: rgba(255, 255, 255, 0.55);
-  max-width: 480px;
+  font-size: clamp(15px, 2vw, 18px);
+  color: rgba(255,255,255,0.5);
+  max-width: 440px;
   line-height: 1.6;
   margin: 0;
+}
+
+/* Centre stage — fixed area, never grows */
+.landing-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px 48px;
+  overflow: hidden;
 }
 
 /* Input */
@@ -1128,15 +1165,15 @@ input:disabled {
   display: flex;
   gap: 12px;
   width: 100%;
-  max-width: 600px;
-  margin-top: 16px;
+  max-width: 580px;
+  animation: card-enter 0.3s ease;
 }
 
 .landing-input {
   flex: 1;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.16);
   border-radius: 8px;
   font-family: 'Lora', Georgia, serif;
   font-size: 16px;
@@ -1144,14 +1181,12 @@ input:disabled {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.landing-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
-}
+.landing-input::placeholder { color: rgba(255,255,255,0.32); }
 
 .landing-input:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255,255,255,0.48);
+  background: rgba(255,255,255,0.1);
 }
 
 .landing-submit-btn {
@@ -1166,162 +1201,144 @@ input:disabled {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  background: rgba(220, 38, 38, 0.15);
-  border: 1px solid rgba(220, 38, 38, 0.35);
+  background: rgba(220,38,38,0.14);
+  border: 1px solid rgba(220,38,38,0.32);
   border-radius: 8px;
-  padding: 16px 24px;
-  max-width: 540px;
+  padding: 20px 28px;
+  max-width: 520px;
   font-family: 'Lora', Georgia, serif;
   font-size: 14px;
   color: #FCA5A5;
+  animation: card-enter 0.25s ease;
 }
 
 .landing-error .btn-ghost {
-  border-color: rgba(252, 165, 165, 0.4);
+  border-color: rgba(252,165,165,0.35);
   color: #FCA5A5;
   font-size: 13px;
   padding: 6px 16px;
 }
 
-/* Pipeline progress section */
-.landing-pipeline-section {
+/* ── Pipeline — single card replacing ─────────────────── */
+.pipeline-track {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  padding: 40px 24px 60px;
-}
-
-.landing-pipeline-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.landing-pipeline-heading {
-  font-family: 'Poppins', Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-/* Pipeline stage cards */
-.pipeline-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   width: 100%;
   max-width: 520px;
 }
 
-.pipeline-stage {
+.pipeline-counter {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 14px 18px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  transition: all 0.3s ease;
+  gap: 6px;
+  align-items: center;
 }
 
-.pipeline-stage--pending {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.06);
-  opacity: 0.45;
+.pipeline-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+  transition: background 0.3s ease, transform 0.3s ease;
 }
 
-.pipeline-stage--active {
-  background: rgba(30, 58, 95, 0.6);
-  border-color: rgba(214, 228, 240, 0.3);
-  opacity: 1;
+.pipeline-pip.active {
+  background: white;
+  transform: scale(1.3);
 }
 
-.pipeline-stage--done {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.08);
-  opacity: 0.75;
+.pipeline-pip.done {
+  background: #6EE7B7;
 }
 
-.pipeline-stage-icon {
-  width: 20px;
-  height: 20px;
+/* The card — keyed so React remounts it, triggering the animation */
+.pipeline-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px 24px;
+  background: rgba(30, 58, 95, 0.55);
+  border: 1px solid rgba(214, 228, 240, 0.2);
+  border-radius: 10px;
+  animation: card-enter 0.25s ease;
+}
+
+.pipeline-card--done {
+  background: rgba(110, 231, 183, 0.08);
+  border-color: rgba(110, 231, 183, 0.25);
+}
+
+.pipeline-card-icon {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .pipeline-check {
-  font-size: 13px;
+  font-size: 16px;
   color: #6EE7B7;
   font-weight: 700;
 }
 
-.pipeline-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.pipeline-stage-body {
+.pipeline-card-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.pipeline-stage-label {
+.pipeline-card-label {
   font-family: 'Poppins', Arial, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: white;
 }
 
-.pipeline-stage-desc {
+.pipeline-card-desc {
   font-family: 'Lora', Georgia, serif;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255,255,255,0.55);
   line-height: 1.5;
 }
 
-.pipeline-stage--active .pipeline-stage-desc {
-  color: rgba(255, 255, 255, 0.65);
+.pipeline-card-step {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.3);
+  flex-shrink: 0;
 }
 
 /* Result card */
-.landing-result {
-  display: flex;
-  justify-content: center;
-  padding: 0 24px 80px;
-}
-
 .landing-result-card {
   width: 100%;
-  max-width: 600px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  max-width: 560px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.11);
   border-radius: 12px;
-  padding: 32px;
+  padding: 28px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  animation: popup-in 0.3s ease;
+  gap: 14px;
+  animation: card-enter 0.3s ease;
 }
 
 .landing-result-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .landing-result-arxiv {
   font-family: 'Poppins', Arial, sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255,255,255,0.35);
   letter-spacing: 0.3px;
 }
 
@@ -1329,16 +1346,16 @@ input:disabled {
   font-family: 'Poppins', Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(110, 231, 183, 0.15);
+  background: rgba(110,231,183,0.13);
   color: #6EE7B7;
-  border: 1px solid rgba(110, 231, 183, 0.25);
-  padding: 3px 10px;
+  border: 1px solid rgba(110,231,183,0.22);
+  padding: 2px 9px;
   border-radius: 4px;
 }
 
 .landing-result-title {
   font-family: 'Poppins', Arial, sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: white;
   line-height: 1.3;
@@ -1348,7 +1365,7 @@ input:disabled {
 .landing-result-authors {
   font-family: 'Lora', Georgia, serif;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255,255,255,0.4);
   margin: 0;
   font-style: italic;
 }
@@ -1356,36 +1373,36 @@ input:disabled {
 .landing-result-components {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .landing-component-chip {
   font-family: 'Poppins', Arial, sans-serif;
   font-size: 11px;
   font-weight: 500;
-  background: rgba(30, 58, 95, 0.6);
-  border: 1px solid rgba(214, 228, 240, 0.2);
-  color: rgba(255, 255, 255, 0.75);
-  padding: 4px 12px;
+  background: rgba(30,58,95,0.6);
+  border: 1px solid rgba(214,228,240,0.18);
+  color: rgba(255,255,255,0.7);
+  padding: 3px 11px;
   border-radius: 20px;
 }
 
 .landing-result-actions {
   display: flex;
-  gap: 12px;
-  padding-top: 8px;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .landing-result-actions .btn-ghost {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.6);
+  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.55);
   font-size: 13px;
 }
 
 .landing-result-actions .btn-ghost:hover {
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255,255,255,0.45);
   color: white;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255,255,255,0.05);
 }
 
 /* ── Responsive ────────────────────────────────────────── */
