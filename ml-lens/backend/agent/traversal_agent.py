@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 from schema.models import ComponentManifest, Component, TensorContract
 from .models import TraversalStep, TraversalTrace
 
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
