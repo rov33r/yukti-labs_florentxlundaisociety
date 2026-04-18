@@ -1,57 +1,63 @@
-EXTRACTION_SYSTEM_PROMPT = """You are an expert ML research engineer extracting a **locked architectural contract** from a paper. This contract grounds downstream code-generation agents, so precision matters more than breadth.
+from __future__ import annotations
+
+import json
+
+from schema.models import ComponentManifest
+
+_SCHEMA_JSON = json.dumps(ComponentManifest.model_json_schema(), indent=2)
+
+EXTRACTION_SYSTEM_PROMPT = f"""You are an expert ML research engineer extracting a locked architectural contract from a paper. This contract grounds downstream code-generation agents, so precision matters more than breadth.
 
 ## Your job
 
-Given the markdown of an ML paper (and its extracted LaTeX equations), produce a JSON ComponentManifest with:
+Given the text of an ML paper (and its extracted LaTeX equations), produce a JSON object that strictly conforms to the JSON Schema below. Do not invent field names — use only the exact field names defined in the schema.
 
-1. **components** — each architectural block the paper defines (embeddings, projections, attention variants, FFN, norms, residuals, masking, output head). For each:
-   - `id`: stable snake_case identifier unique within the manifest
-   - `name`: the paper's term for it
-   - `kind`: one of the allowed ComponentKind values
-   - `description`: one paragraph, grounded in the paper
-   - `operations`: ordered tensor ops as short strings (e.g. "matmul(Q, K.T)", "divide by sqrt(d_k)", "softmax over last dim")
-   - `depends_on`: ids of upstream components whose output feeds this one
-   - `hyperparameters`: named hparams as strings (e.g. {"d_k": "64", "h": "8"}). Use the paper's exact symbols.
-   - `equations`: LaTeX for the key equations, verbatim where possible
-   - `quote`: a short verbatim snippet from the paper that grounds the component
+## JSON Schema (strict — your output MUST validate against this)
 
-2. **tensor_contracts** — per-component I/O shapes using **symbolic dim names** from the paper (e.g. "B", "T", "d_model", "h", "d_k"). Never invent concrete integers unless the paper specifies them.
+```json
+{_SCHEMA_JSON}
+```
 
-3. **invariants** — paper-level structural rules (weight tying, causal masking, residual connections, init schemes, norm placement, scaling factors). Each with its affected components and a supporting quote.
+## Critical field rules
 
-4. **symbol_table** — definitions for every symbolic dim / hyperparameter you use. Every symbol referenced in tensor_contracts or hyperparameters MUST appear here.
+- `components[*].kind` — MUST be exactly one of the enum values listed in the schema. No other values.
+- `invariants[*].kind` — MUST be exactly one of the enum values listed in the schema. No other values.
+- `quote` fields — MUST be an object with a `"text"` string field (and optional `"section"` string), NOT a plain string.
+- `tensor_contracts[*].input_shapes` and `output_shapes` — MUST be objects mapping tensor name strings to arrays of symbolic dimension strings, e.g. {{"Q": ["B", "T_q", "d_model"]}}. Never a list.
+- `notes` — MUST be a single string or null, NOT a list.
+- Do NOT include the `paper` field — it will be injected automatically.
+- All LaTeX in JSON strings must use double backslashes (e.g. `\\\\frac`, `\\\\sqrt`).
 
-5. **notes** — any ambiguities, missing information, or extractor uncertainty. This is flagged for human review.
+## Extraction scope
 
-## Scope rule — ATTENTION FOCUS
-
-This system is currently scoped to **transformer attention mechanism papers**. Prioritize: Q/K/V projections, attention score computation, softmax variant, masking, head splitting/merging, output projection, residual + norm placement, FFN. If the paper is not attention-centric, still produce the manifest but flag it in `notes`.
+Focus on transformer attention mechanisms: Q/K/V projections, attention score computation, softmax, masking, head splitting/merging, output projection, residual + norm placement, FFN. If the paper is not attention-centric, still produce the manifest but flag it in `notes`.
 
 ## Correctness rules
 
-- **Never fabricate**: if a shape, symbol, or invariant is not in the paper, omit it (and flag in notes).
-- **Prefer symbolic over numeric**: shapes are symbolic tuples of strings.
-- **Quote-grounded**: every component and invariant should have a paper quote when possible.
-- **Deterministic ids**: id must be snake_case, unique, derived from the paper's own terminology.
-- **No prose outside JSON**: your output must be a single JSON object conforming to the schema. No preamble, no commentary.
+- Never fabricate: if a shape, symbol, or invariant is not in the paper, omit it.
+- Prefer symbolic over numeric: shapes use symbolic dim names from the paper.
+- ids must be snake_case, unique, derived from the paper's own terminology.
+- No prose outside JSON: your output must be a single JSON object. No markdown fences, no preamble.
 
 ## Output
 
-Return ONLY a JSON object matching the ComponentManifest schema. No markdown fences, no explanation.
+Return ONLY a valid JSON object matching the schema above. No markdown, no explanation.
 """
-
 
 USER_MESSAGE_TEMPLATE = """Paper metadata:
 - arxiv_id: {arxiv_id}
 - title: {title}
 - authors: {authors}
 
-Extracted LaTeX equations (deduped):
+Extracted LaTeX equations (deduped, up to 200):
 {equations}
 
-Paper markdown (Docling output):
+Figure captions extracted from PDF:
+{figure_captions}
+
+Paper text (PyMuPDF extraction):
 ---
-{markdown}
+{text}
 ---
 
 Produce the ComponentManifest JSON now."""

@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import IngestionForm from './IngestionForm'
 import IngestionResult from './IngestionResult'
+import LoadingBar from './LoadingBar'
+import LoadingDots from './LoadingDots'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -12,7 +14,7 @@ export default function Ingestion() {
   const handleIngest = async (url, forceRefresh) => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const res = await fetch(`${API_BASE}/ingest`, {
         method: 'POST',
@@ -41,6 +43,8 @@ export default function Ingestion() {
 
   return (
     <div className="ingestion-page">
+      <LoadingBar loading={loading} label="Processing paper…" />
+
       <div className="ingestion-container">
         <h2>Paper Ingestion</h2>
         <p className="page-subtitle">Extract components from arXiv papers</p>
@@ -55,14 +59,7 @@ export default function Ingestion() {
           <IngestionResult result={result} onReset={handleReset} />
         ) : (
           <>
-            {loading && (
-              <div className="loading-state">
-                <p>Processing paper...</p>
-              </div>
-            )}
-            {!loading && (
-              <IngestionForm onSubmit={handleIngest} loading={loading} />
-            )}
+            <IngestionForm onSubmit={handleIngest} loading={loading} />
           </>
         )}
       </div>

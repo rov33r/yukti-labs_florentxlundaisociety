@@ -1,17 +1,24 @@
 import React, { useState } from 'react'
 import Header from './components/Header'
-import Ingestion from './components/Ingestion'
+import ChatPanel from './components/ChatPanel'
 import Sandbox from './components/Sandbox'
+import LandingPage from './components/LandingPage'
 import './index.css'
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('sandbox')
+  const [currentPage, setCurrentPage] = useState('landing')
+
+  if (currentPage === 'landing') {
+    return <LandingPage onEnter={() => setCurrentPage('sandbox')} />
+  }
 
   return (
-    <div className="app">
-      <Header currentPage={currentPage} onNavigate={setCurrentPage} />
-      {currentPage === 'sandbox' && <Sandbox />}
-      {currentPage === 'ingestion' && <Ingestion />}
+    <div className="app-shell">
+      <Header />
+      <div className="main-split">
+        <ChatPanel />
+        <Sandbox />
+      </div>
     </div>
   )
 }

@@ -30,54 +30,33 @@ def ingest_paper(
     download_dir: Optional[Path] = None,
     force_refresh: bool = False,
 ) -> ComponentManifest:
-    """End-to-end ingestion with on-disk caching at every stage.
+    """Lightweight 3-stage ingestion: arxiv metadata → PyMuPDF parse → LLM extraction.
 
-    Stages (each cached independently):
-      1. Resolve arXiv id, download PDF (skipped if cached).
-      2. Parse PDF with Docling (skipped if cached ParsedPaper exists).
-      3. Call Claude with the locked-schema extraction prompt (skipped if cached
-         ComponentManifest exists for the current prompt hash).
-
-    Set `force_refresh=True` to ignore cache and re-run every stage. The download
-    dir argument is preserved for callers that want a non-default PDF location,
-    but by default everything lives under the central cache root.
+    Each stage is independently cached under /tmp/ml-lens-cache/{arxiv_id}/.
     """
     arxiv_id = _arxiv_id_from(url_or_id)
     cache = IngestionCache(arxiv_id)
     phash = prompt_hash(EXTRACTION_SYSTEM_PROMPT)
 
-    # --- stage 3 fast-path: cached manifest wins outright, skips everything else.
     if not force_refresh:
-        cached_manifest = cache.get_manifest(phash)
-        if cached_manifest is not None:
-            logger.info("cache hit: manifest for %s (prompt %s)", arxiv_id, phash)
-            return cached_manifest
+        cached = cache.get_manifest(phash)
+        if cached is not None:
+            logger.info("cache hit: manifest for %s", arxiv_id)
+            return cached
 
-    # --- stage 1: metadata + PDF.
     paper = None if force_refresh else cache.get_metadata()
     if paper is None:
-        logger.info("cache miss: fetching arXiv metadata + PDF for %s", arxiv_id)
-        paper = resolve_arxiv(
-            url_or_id,
-            download_dir=download_dir,
-            target_pdf_path=cache.pdf_path,
-        )
+        logger.info("fetching arXiv metadata + PDF for %s", arxiv_id)
+        paper = resolve_arxiv(url_or_id, download_dir=download_dir, target_pdf_path=cache.pdf_path)
         cache.set_metadata(paper)
-    else:
-        logger.info("cache hit: metadata + PDF for %s", arxiv_id)
 
-    # --- stage 2: parsed paper (Docling is CPU-heavy — worth caching).
     parsed = None if force_refresh else cache.get_parsed()
     if parsed is None:
-        logger.info("cache miss: running Docling for %s", arxiv_id)
-        parsed = parse_pdf(paper.pdf_path)
+        logger.info("parsing PDF with PyMuPDF for %s", arxiv_id)
+        parsed = parse_pdf(paper.pdf_path, arxiv_id=arxiv_id)
         cache.set_parsed(parsed)
-    else:
-        logger.info("cache hit: parsed paper for %s", arxiv_id)
 
-    # --- stage 3: Claude extraction. Always writes into the cache on success
-    #              so subsequent calls with the same prompt are free.
-    logger.info("cache miss: calling Claude extractor for %s", arxiv_id)
+    logger.info("calling LLM extractor for %s", arxiv_id)
     manifest = extract_manifest(paper, parsed)
     cache.set_manifest(manifest, phash)
     return manifest

@@ -4,7 +4,11 @@ from .models import (
     TensorContract,
     Invariant,
     PaperMetadata,
+    PaperQuote,
+    ComponentKind,
 )
+from .lock import lock_manifest, LockedManifest
+from .validator import validate_manifest
 
 __all__ = [
     "ComponentManifest",
@@ -12,4 +16,9 @@ __all__ = [
     "TensorContract",
     "Invariant",
     "PaperMetadata",
+    "PaperQuote",
+    "ComponentKind",
+    "lock_manifest",
+    "LockedManifest",
+    "validate_manifest",
 ]
