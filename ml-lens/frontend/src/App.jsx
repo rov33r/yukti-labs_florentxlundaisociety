@@ -6,7 +6,7 @@ import Sandbox from './components/Sandbox'
 import './index.css'
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [currentPage, setCurrentPage] = useState('sandbox')
 
   return (
     <div className="app">
