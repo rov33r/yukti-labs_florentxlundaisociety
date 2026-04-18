@@ -618,6 +618,50 @@ input:disabled {
   margin-top: 8px;
 }
 
+/* ── Asterisk Spinner ──────────────────────────────────── */
+@keyframes asterisk-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.asterisk-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  animation: asterisk-spin 1.6s linear infinite;
+}
+
+/* Inline loading — used inside chat bubble */
+.loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-inline-label {
+  font-family: 'Lora', Georgia, serif;
+  font-style: italic;
+  font-size: 13px;
+  color: #7A93B0;
+}
+
+/* Block loading indicator — used above ingestion page & chat panel */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #EEF3FA;
+  border-bottom: 1px solid #D6E4F0;
+}
+
+.loading-indicator-label {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1E3A5F;
+  letter-spacing: 0.1px;
+}
+
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 768px) {
   body {

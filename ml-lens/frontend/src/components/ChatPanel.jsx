@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
+import LoadingBar from './LoadingBar'
+import LoadingDots from './LoadingDots'
 
 const STUB_RESPONSES = [
   "That's a great question. The attention mechanism allows each token to weigh all other tokens — this is why the model can capture long-range dependencies that RNNs struggle with.",
@@ -37,6 +39,7 @@ export default function ChatPanel() {
     setInput('')
     setLoading(true)
 
+    // stub — will be replaced by POST /api/chat
     setTimeout(() => {
       const reply = { id: Date.now() + 1, role: 'assistant', content: stubReply() }
       setMessages((prev) => [...prev, reply])
@@ -53,6 +56,8 @@ export default function ChatPanel() {
 
   return (
     <aside className="chat-panel">
+      <LoadingBar loading={loading} />
+
       <div className="chat-panel-header">
         <span className="chat-panel-title">Model Chat</span>
         <span className="badge badge-completed">Transformer</span>
@@ -66,7 +71,7 @@ export default function ChatPanel() {
         ))}
         {loading && (
           <div className="chat-bubble assistant">
-            <p className="chat-typing">Thinking…</p>
+            <LoadingDots />
           </div>
         )}
         <div ref={bottomRef} />
