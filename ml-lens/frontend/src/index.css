@@ -627,6 +627,139 @@ body {
   flex: 1;
 }
 
+/* Shape flow */
+.shape-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.shape-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #F9FAFB;
+  border-radius: 6px;
+  padding: 6px 10px;
+  border: 1px solid #E5E5E5;
+}
+
+.shape-pill.in  { border-color: #BAE6FD; background: #F0F9FF; }
+.shape-pill.out { border-color: #BBF7D0; background: #F0FDF4; }
+
+.shape-dir {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9CA3AF;
+}
+
+.shape-concrete {
+  font-size: 11px;
+  color: #6B7280;
+}
+
+.shape-arrow {
+  font-size: 20px;
+  color: #0D9488;
+}
+
+/* Intermediates */
+.intermediates-section {
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.intermediates-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.intermediates-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.intermediate-item {
+  display: grid;
+  grid-template-columns: 90px auto 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.intermediate-name {
+  font-weight: 600;
+  color: #374151;
+}
+
+.intermediate-shape {
+  font-family: monospace;
+  font-size: 11px;
+  color: #0369A1;
+  background: #EFF6FF;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.intermediate-op {
+  color: #6B7280;
+  font-size: 11px;
+}
+
+.intermediate-eq {
+  grid-column: 2 / -1;
+  font-family: monospace;
+  font-size: 10px;
+  color: #7E22CE;
+  word-break: break-all;
+}
+
+/* Param / FLOPs badges */
+.param-badge {
+  background: #F3E8FF;
+  color: #7E22CE;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.flops-badge {
+  background: #FFF7ED;
+  color: #C2410C;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Trace summary */
+.trace-summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B7280;
+  padding: 6px 8px;
+  background: #F9FAFB;
+  border-radius: 6px;
+  border: 1px solid #E5E5E5;
+  margin-bottom: 4px;
+}
+
 .detail-insight {
   font-size: 13px;
   color: #6B7280;

@@ -111,6 +111,10 @@ export default function SchemaReview() {
           {trace && (
             <div className="traversal-panel">
               <div className="traversal-steps-list">
+                <div className="trace-summary">
+                  <span>{trace.total_components} components</span>
+                  <span>{(trace.total_parameters / 1e6).toFixed(1)}M params</span>
+                </div>
                 {trace.steps.map((step, i) => (
                   <button
                     key={step.component_id}
@@ -125,19 +129,60 @@ export default function SchemaReview() {
 
               {activeStep && (
                 <div className="traversal-detail">
-                  <h4 className="detail-title">{activeStep.component_name}</h4>
-                  <div className="detail-row">
-                    <span className="detail-label">IN</span>
-                    <span className="detail-value">{activeStep.input_state}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <h4 className="detail-title">{activeStep.component_name}</h4>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {activeStep.parameter_count > 0 && (
+                        <span className="param-badge">{(activeStep.parameter_count / 1e6).toFixed(2)}M params</span>
+                      )}
+                      {activeStep.flops_approx && (
+                        <span className="flops-badge">{(activeStep.flops_approx / 1e6).toFixed(1)}M FLOPs</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="detail-row">
-                    <span className="detail-label">TRANSFORM</span>
-                    <span className="detail-value">{activeStep.transformation}</span>
+
+                  {/* Shape flow */}
+                  <div className="shape-flow-row">
+                    <div className="shape-pill in">
+                      <span className="shape-dir">IN</span>
+                      <code>[{activeStep.input_symbolic?.join(', ')}]</code>
+                      <span className="shape-concrete">{activeStep.input_concrete?.join('×')}</span>
+                    </div>
+                    <span className="shape-arrow">→</span>
+                    <div className="shape-pill out">
+                      <span className="shape-dir">OUT</span>
+                      <code>[{activeStep.output_symbolic?.join(', ')}]</code>
+                      <span className="shape-concrete">{activeStep.output_concrete?.join('×')}</span>
+                    </div>
                   </div>
+
+                  {/* Intermediates */}
+                  {activeStep.intermediates?.length > 0 && (
+                    <div className="intermediates-section">
+                      <div className="intermediates-label">Internal tensors</div>
+                      <div className="intermediates-flow">
+                        {activeStep.intermediates.map((it, i) => (
+                          <div key={i} className="intermediate-item">
+                            <div className="intermediate-name">{it.name}</div>
+                            <code className="intermediate-shape">[{it.symbolic?.join(', ')}]</code>
+                            <div className="intermediate-op">{it.operation}</div>
+                            {it.equation && <code className="intermediate-eq">{it.equation}</code>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Math steps */}
                   <div className="detail-row">
-                    <span className="detail-label">OUT</span>
-                    <span className="detail-value">{activeStep.output_state}</span>
+                    <span className="detail-label">MATH</span>
+                    <div className="detail-value">
+                      {activeStep.transformation?.split('\n').map((line, i) => (
+                        <div key={i} style={{ marginBottom: 3 }}>{line}</div>
+                      ))}
+                    </div>
                   </div>
+
                   <div className="detail-insight">💡 {activeStep.key_insight}</div>
                 </div>
               )}

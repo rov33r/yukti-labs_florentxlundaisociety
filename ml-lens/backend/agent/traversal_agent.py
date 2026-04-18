@@ -1,19 +1,36 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
-import asyncio
+
 from openai import AsyncOpenAI
 
-from schema.models import ComponentManifest, Component, TensorContract
-from .models import TraversalStep, TraversalTrace
+from schema.models import ComponentManifest, Component
+from .math_engine import compute_transform, MathTransformResult
+from .models import IntermediateTensor, TraversalStep, TraversalTrace
 
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+_KIND_INSIGHT = {
+    "input_embedding": "Maps discrete token IDs to continuous vector space — the only place where symbolic language enters the numeric world.",
+    "positional_encoding": "Injects position information without parameters — uses fixed sin/cos frequencies so the model knows token order.",
+    "multi_head_attention": "The core mechanism: every token attends to every other token simultaneously, learning which relationships matter.",
+    "attention": "Computes query-key-value attention — determines how much each position contributes to each output.",
+    "feedforward": "Position-wise MLP applies the same non-linear transform to every token independently, adding representational capacity.",
+    "layernorm": "Normalizes activations per token to stabilize training and prevent gradient vanishing/explosion.",
+    "rmsnorm": "Root-mean-square normalization — simpler than LayerNorm but empirically equivalent, used in LLaMA/Gemma.",
+    "residual": "Skip connection lets gradients flow directly to earlier layers — the key to training very deep networks.",
+    "softmax": "Converts raw scores to a probability distribution — ensures attention weights sum to 1 per query.",
+    "masking": "Masks future positions so the model cannot cheat by looking ahead during autoregressive generation.",
+    "linear_projection": "Learned linear map that projects between representation spaces.",
+    "output_head": "Projects final hidden states to vocabulary logits — the probability distribution over the next token.",
+    "other": "Component performs a specialized transformation in the model pipeline.",
+}
+
 
 def _topological_order(components: list[Component]) -> list[Component]:
-    """Return components sorted so dependencies come before dependents."""
     id_map = {c.id: c for c in components}
     visited: set[str] = set()
     order: list[Component] = []
@@ -34,77 +51,33 @@ def _topological_order(components: list[Component]) -> list[Component]:
     return order
 
 
-async def _traverse_component(
+async def _llm_insight(
     client: AsyncOpenAI,
     component: Component,
-    contracts: list[TensorContract],
-    symbol_table: dict[str, str],
+    math: MathTransformResult,
     model: str,
-    order: int,
-    prev_output: str,
-) -> TraversalStep:
-    contract = next((tc for tc in contracts if tc.component_id == component.id), None)
-
-    symbols_str = ", ".join(f"{k}={v}" for k, v in symbol_table.items()) if symbol_table else "none"
-    contract_str = ""
-    if contract:
-        contract_str = (
-            f"Input shapes: {contract.input_shapes}\n"
-            f"Output shapes: {contract.output_shapes}\n"
-            f"dtype: {contract.dtype or 'float32'}"
-        )
-
-    equations_str = "\n".join(component.equations) if component.equations else "none"
-    ops_str = ", ".join(component.operations) if component.operations else "none"
-
-    prompt = f"""You are a data tensor flowing through the architecture of a research paper model.
-Your previous state (from the prior layer): {prev_output or "raw input tokens"}
-
-You are now entering component: {component.name} (kind: {component.kind})
-Description: {component.description}
-Operations performed on you: {ops_str}
-Equations: {equations_str}
-{contract_str}
-Symbol table: {symbols_str}
-
-Respond ONLY with valid JSON (no markdown fences):
-{{
-  "input_state": "concise description of your tensor state entering this component (mention shapes symbolically)",
-  "output_state": "concise description of your tensor state after this component",
-  "transformation": "what mathematically/computationally happens to you here — be specific to the ops and equations",
-  "key_insight": "one sentence on why this component is architecturally significant"
-}}"""
-
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        max_tokens=400,
-        temperature=0.3,
-    )
-
-    raw = response.choices[0].message.content or "{}"
+) -> str:
+    """Call LLM for a one-sentence architectural insight. Falls back to template on any error."""
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        data = {
-            "input_state": prev_output or "input tokens",
-            "output_state": f"transformed by {component.name}",
-            "transformation": component.description,
-            "key_insight": f"{component.name} processes the data.",
-        }
-
-    return TraversalStep(
-        component_id=component.id,
-        component_name=component.name,
-        component_kind=component.kind,
-        input_state=data.get("input_state", ""),
-        output_state=data.get("output_state", ""),
-        transformation=data.get("transformation", ""),
-        key_insight=data.get("key_insight", ""),
-        equations_applied=component.equations,
-        order=order,
-    )
+        prompt = (
+            f"Component: {component.name} ({component.kind})\n"
+            f"Input shape: {math.input_symbolic} = {math.input_concrete}\n"
+            f"Output shape: {math.output_symbolic} = {math.output_concrete}\n"
+            f"Key operations: {'; '.join(math.transformation_steps[:3])}\n"
+            f"Parameters: {math.parameter_count:,}\n\n"
+            "In one sentence (max 25 words), explain WHY this component is architecturally essential. "
+            "Be specific to the math above. Reply with just the sentence, no quotes."
+        )
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=60,
+            temperature=0.4,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        return text if text else _KIND_INSIGHT.get(component.kind, _KIND_INSIGHT["other"])
+    except Exception:
+        return _KIND_INSIGHT.get(component.kind, _KIND_INSIGHT["other"])
 
 
 async def run_traversal(manifest: ComponentManifest) -> TraversalTrace:
@@ -116,21 +89,64 @@ async def run_traversal(manifest: ComponentManifest) -> TraversalTrace:
     model = DEFAULT_MODEL
 
     ordered = _topological_order(manifest.components)
-    steps: list[TraversalStep] = []
-    prev_output = ""
 
-    for i, component in enumerate(ordered):
-        step = await _traverse_component(
-            client=client,
+    # ── Phase 1: deterministic math (sync, in topological order) ─────────────
+    current_shape = ["B", "T"]
+    math_results: list[tuple[Component, MathTransformResult]] = []
+
+    for component in ordered:
+        math = compute_transform(
             component=component,
-            contracts=manifest.tensor_contracts,
+            tensor_contracts=manifest.tensor_contracts,
+            current_shape=current_shape,
             symbol_table=manifest.symbol_table,
-            model=model,
-            order=i,
-            prev_output=prev_output,
         )
-        steps.append(step)
-        prev_output = step.output_state
+        math_results.append((component, math))
+        current_shape = math.output_symbolic
+
+    # ── Phase 2: parallel LLM insight calls ───────────────────────────────────
+    insights = await asyncio.gather(
+        *[_llm_insight(client, comp, math, model) for comp, math in math_results],
+        return_exceptions=True,
+    )
+
+    # ── Phase 3: assemble TraversalSteps ─────────────────────────────────────
+    steps: list[TraversalStep] = []
+    for i, ((component, math), insight) in enumerate(zip(math_results, insights)):
+        key_insight = (
+            insight if isinstance(insight, str)
+            else _KIND_INSIGHT.get(component.kind, _KIND_INSIGHT["other"])
+        )
+
+        steps.append(TraversalStep(
+            component_id=component.id,
+            component_name=component.name,
+            component_kind=component.kind,
+            input_state=math.input_description,
+            output_state=math.output_description,
+            transformation="\n".join(math.transformation_steps),
+            key_insight=key_insight,
+            equations_applied=component.equations,
+            intermediates=[
+                IntermediateTensor(
+                    name=it.name,
+                    symbolic=it.symbolic,
+                    concrete=it.concrete,
+                    operation=it.operation,
+                    equation=it.equation,
+                )
+                for it in math.intermediates
+            ],
+            input_symbolic=math.input_symbolic,
+            input_concrete=math.input_concrete,
+            output_symbolic=math.output_symbolic,
+            output_concrete=math.output_concrete,
+            parameter_count=math.parameter_count,
+            flops_approx=math.flops_approx,
+            order=i,
+        ))
+
+    total_params = sum(s.parameter_count for s in steps)
 
     return TraversalTrace(
         arxiv_id=manifest.paper.arxiv_id,
@@ -138,4 +154,5 @@ async def run_traversal(manifest: ComponentManifest) -> TraversalTrace:
         steps=steps,
         model_used=model,
         total_components=len(ordered),
+        total_parameters=total_params,
     )
