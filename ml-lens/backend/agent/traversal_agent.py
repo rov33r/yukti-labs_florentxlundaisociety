@@ -104,11 +104,17 @@ async def run_traversal(manifest: ComponentManifest) -> TraversalTrace:
         math_results.append((component, math))
         current_shape = math.output_symbolic
 
-    # ── Phase 2: parallel LLM insight calls ───────────────────────────────────
-    insights = await asyncio.gather(
-        *[_llm_insight(client, comp, math, model) for comp, math in math_results],
-        return_exceptions=True,
-    )
+    # ── Phase 2: insights (demo mode skips LLM for instant results) ──────────
+    if os.getenv("TRAVERSAL_DEMO_MODE", "false").lower() == "true":
+        insights = [
+            _KIND_INSIGHT.get(comp.kind, _KIND_INSIGHT["other"])
+            for comp, _ in math_results
+        ]
+    else:
+        insights = await asyncio.gather(
+            *[_llm_insight(client, comp, math, model) for comp, math in math_results],
+            return_exceptions=True,
+        )
 
     # ── Phase 3: assemble TraversalSteps ─────────────────────────────────────
     steps: list[TraversalStep] = []
