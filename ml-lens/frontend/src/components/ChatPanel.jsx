@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import LoadingBar from './LoadingBar'
 import LoadingDots from './LoadingDots'
+import MarkdownMessage from './MarkdownMessage'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -80,7 +81,10 @@ export default function ChatPanel() {
       <div className="chat-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`chat-bubble ${msg.role}`}>
-            <p>{msg.content}</p>
+            {msg.role === 'assistant'
+              ? <MarkdownMessage content={msg.content} />
+              : <p>{msg.content}</p>
+            }
           </div>
         ))}
         {loading && (

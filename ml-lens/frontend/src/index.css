@@ -623,6 +623,138 @@ input:disabled {
   margin-top: 8px;
 }
 
+/* ── Markdown Renderer (assistant chat bubbles) ─────────── */
+.md-root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.md-h1 {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1E3A5F;
+  margin: 4px 0 2px;
+  line-height: 1.3;
+}
+
+.md-h2 {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1E3A5F;
+  margin: 4px 0 2px;
+  line-height: 1.3;
+}
+
+.md-h3 {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2D4A6A;
+  margin: 4px 0 2px;
+  line-height: 1.3;
+}
+
+.md-p {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 14px;
+  color: #0F1C2E;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.md-strong {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-weight: 600;
+  color: #1E3A5F;
+}
+
+.md-em {
+  font-style: italic;
+  color: #2D4A6A;
+}
+
+.md-ul,
+.md-ol {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.md-ul { list-style-type: disc; }
+.md-ol { list-style-type: decimal; }
+
+.md-li {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 14px;
+  color: #0F1C2E;
+  line-height: 1.6;
+}
+
+.md-blockquote {
+  border-left: 3px solid #1E3A5F;
+  background: #EEF3FA;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.md-blockquote .md-p {
+  color: #2D4A6A;
+  font-style: italic;
+}
+
+.md-code-inline {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: #EEF3FA;
+  color: #1E3A5F;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #D6E4F0;
+}
+
+.md-pre {
+  background: #0F1C2E;
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.md-pre code {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #EEF3FA;
+  line-height: 1.6;
+}
+
+.md-hr {
+  border: none;
+  border-top: 1px solid #D6E4F0;
+  margin: 4px 0;
+}
+
+.md-link {
+  color: #1E3A5F;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-link:hover {
+  color: #2D6DB5;
+}
+
+/* Keep assistant bubble text readable on the light bg */
+.chat-bubble.assistant .md-p,
+.chat-bubble.assistant .md-li {
+  color: #0F1C2E;
+}
+
 /* ── Parameter Editor (inside NodeInfoPopup) ───────────── */
 .node-popup-params {
   display: flex;
