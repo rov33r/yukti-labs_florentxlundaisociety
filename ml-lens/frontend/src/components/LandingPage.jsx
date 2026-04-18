@@ -80,6 +80,7 @@ export default function LandingPage({ onEnter }) {
 
       {/* Hero */}
       <section className="landing-hero">
+        <AsteriskSpinner size={72} color="white" className="landing-logo-icon" />
         <h1 className="landing-title">Yukti</h1>
         <p className="landing-subtitle">
           Understand ML architectures through interactive exploration

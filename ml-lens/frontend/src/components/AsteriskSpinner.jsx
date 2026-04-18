@@ -1,12 +1,12 @@
 import React from 'react'
 
-export default function AsteriskSpinner({ size = 20, color = '#1E3A5F' }) {
+export default function AsteriskSpinner({ size = 20, color = '#1E3A5F', className = '' }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      className="asterisk-spinner"
+      className={`asterisk-spinner ${className}`.trim()}
       aria-label="Loading"
       role="status"
     >

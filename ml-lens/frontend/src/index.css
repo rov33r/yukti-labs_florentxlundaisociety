@@ -1016,6 +1016,12 @@ input:disabled {
   animation: asterisk-spin 1.6s linear infinite;
 }
 
+/* Slow elegant rotation for the landing logo */
+.landing-logo-icon {
+  animation-duration: 12s;
+  opacity: 0.9;
+}
+
 /* Inline loading — used inside chat bubble */
 .loading-inline {
   display: inline-flex;
