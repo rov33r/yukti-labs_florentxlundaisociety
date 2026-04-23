@@ -10,6 +10,8 @@ const API_BASE = 'http://localhost:8000'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('landing')
+  const [manifest, setManifest] = useState(null)
+  const [viewMode, setViewMode] = useState('model') // 'model' or 'code'
 
   // Hyperparams lifted here so Header (Run Traversal) can read them
   const [hyperparams, setHyperparams] = useState(() => {
@@ -46,30 +48,19 @@ export default function App() {
     setTraversalError(null)
 
     try {
-      // Fetch the real "Attention Is All You Need" manifest from the backend
-      const sampleRes = await fetch(`${API_BASE}/api/schema/sample`)
-      if (!sampleRes.ok) throw new Error('Could not load paper manifest')
-      const { manifest } = await sampleRes.json()
-
-      // Overlay user's live hyperparams into the symbol table
-      const p1 = hyperparams['1'], p2 = hyperparams['2']
-      const p5 = hyperparams['5'], p6 = hyperparams['6']
-      const dK = Math.floor(p2.d_model / p5.num_heads)
-      manifest.symbol_table = {
-        ...manifest.symbol_table,
-        B:       'batch size',
-        T:       `sequence length (max ${p1.max_seq_len})`,
-        d_model: `model hidden dimension (${p2.d_model})`,
-        h:       `number of attention heads (${p5.num_heads})`,
-        d_k:     `key/query dimension per head (${dK})`,
-        d_ff:    `feed-forward hidden dimension (${p6.d_ff})`,
-        V:       `vocabulary size (${p2.vocab_size ?? 37000})`,
+      // Use the live ingested manifest, fall back to the sample endpoint
+      let liveManifest = manifest
+      if (!liveManifest) {
+        const sampleRes = await fetch(`${API_BASE}/api/schema/sample`)
+        if (!sampleRes.ok) throw new Error('Could not load paper manifest')
+        const data = await sampleRes.json()
+        liveManifest = data.manifest ?? data
       }
 
       const res = await fetch(`${API_BASE}/api/traverse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(manifest),
+        body: JSON.stringify(liveManifest),
       })
 
       if (!res.ok) {
@@ -83,21 +74,30 @@ export default function App() {
     } finally {
       setTraversalLoading(false)
     }
-  }, [hyperparams])
+  }, [manifest])
 
   if (currentPage === 'landing') {
-    return <LandingPage onEnter={() => setCurrentPage('sandbox')} />
+    return <LandingPage onEnter={(data) => {
+      // data may be a locked manifest (with .manifest) or a raw manifest or null
+      const resolved = data?.manifest ?? data ?? null
+      setManifest(resolved)
+      setCurrentPage('sandbox')
+    }} />
   }
 
   return (
     <div className="app-shell">
       <Header
+        viewMode={viewMode}
+        setViewMode={setViewMode}
         traversalLoading={traversalLoading}
         onRunTraversal={handleRunTraversal}
       />
       <div className="main-split">
         <ChatPanel />
         <Sandbox
+          manifest={manifest}
+          viewMode={viewMode}
           hyperparams={hyperparams}
           onParamChange={handleParamChange}
           onParamReset={handleParamReset}

@@ -7,11 +7,13 @@ import warnings
 from datetime import datetime
 from typing import List, Optional, Literal
 
+from dotenv import load_dotenv
+load_dotenv()
+
 if os.getenv("DISABLE_SSL_VERIFY", "false").lower() == "true":
     ssl._create_default_https_context = ssl._create_unverified_context
 
 import httpx
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

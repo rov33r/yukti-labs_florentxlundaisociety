@@ -1730,3 +1730,222 @@ input:disabled {
   background: #9CA3AF;
   transform: none;
 }
+
+/* ── Sandbox paper banner ───────────────────────────────── */
+.sandbox-paper-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: white;
+  border: 1px solid #D6E4F0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: 0 2px 8px rgba(30, 58, 95, 0.08);
+  max-width: 640px;
+  font-family: 'Poppins', Arial, sans-serif;
+}
+
+.sandbox-paper-arxiv {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7A93B0;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.sandbox-paper-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E3A5F;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sandbox-paper-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  background: #16A34A;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* ── LaTeX Equation rendering ───────────────────────────── */
+.latex-equation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.latex-block {
+  background: #F8FAFF;
+  border: 1px solid #D6E4F0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  overflow: hidden;
+  text-align: center;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.latex-block .katex-display {
+  margin: 0;
+}
+
+.latex-inline .katex {
+  font-size: 0.95em;
+}
+
+.latex-fallback {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #4B5E78;
+  background: #EEF3FA;
+  padding: 2px 6px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+/* ── Header View Toggle ────────────────────────────────── */
+.header-view-toggle {
+  display: flex;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.header-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.header-toggle-item:hover {
+  color: #111827;
+}
+
+.header-toggle-item.active {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.toggle-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* ── Code View Container ────────────────────────────────── */
+.code-view-container {
+  width: 100%;
+  height: 100%;
+  background: #F8FAFF;
+  display: flex;
+  flex-direction: column;
+  padding: 40px; /* Reduced padding as it's no longer floating */
+}
+
+.code-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.code-view-header h3 {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E3A5F;
+}
+
+.code-view-badge {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  background: #EEF3FA;
+  color: #1E3A5F;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #D6E4F0;
+}
+
+.code-view-placeholder {
+  flex: 1;
+  background: white;
+  border: 1px solid #D6E4F0;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(30, 58, 95, 0.04);
+  padding: 32px;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.code-mock-line {
+  margin-bottom: 8px;
+  color: #4B5E78;
+}
+
+.code-mock-line span {
+  color: #059669; /* Python keyword green */
+  font-weight: 600;
+}
+
+.code-mock-line.indent-1 { padding-left: 24px; }
+.code-mock-line.indent-2 { padding-left: 48px; }
+
+.code-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+}
+
+.code-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.code-empty-state p {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 15px;
+  color: #4B5E78;
+  margin-bottom: 24px;
+  max-width: 300px;
+}

@@ -33,21 +33,21 @@ class IngestionCache:
         if not p.exists():
             return None
         try:
-            d = json.loads(p.read_text())
+            d = json.loads(p.read_text(encoding="utf-8"))
             return ArxivPaper(**{**d, "pdf_path": Path(d["pdf_path"])})
         except Exception:
             return None
 
     def set_metadata(self, paper: ArxivPaper) -> None:
         d = {**paper.__dict__, "pdf_path": str(paper.pdf_path)}
-        (self.root / "metadata.json").write_text(json.dumps(d))
+        (self.root / "metadata.json").write_text(json.dumps(d), encoding="utf-8")
 
     def get_parsed(self) -> Optional[ParsedPaper]:
         p = self.root / "parsed.json"
         if not p.exists():
             return None
         try:
-            d = json.loads(p.read_text())
+            d = json.loads(p.read_text(encoding="utf-8"))
             return ParsedPaper(
                 text=d["text"],
                 equations=d["equations"],
@@ -63,17 +63,17 @@ class IngestionCache:
             "equations": parsed.equations,
             "figure_captions": parsed.figure_captions,
         }
-        (self.root / "parsed.json").write_text(json.dumps(d))
+        (self.root / "parsed.json").write_text(json.dumps(d), encoding="utf-8")
 
     def get_manifest(self, phash: str) -> Optional[ComponentManifest]:
         p = self.root / f"manifest_{phash}.json"
         if not p.exists():
             return None
         try:
-            return ComponentManifest.model_validate_json(p.read_text())
+            return ComponentManifest.model_validate_json(p.read_text(encoding="utf-8"))
         except (ValidationError, Exception):
             return None
 
     def set_manifest(self, manifest: ComponentManifest, phash: str) -> None:
         p = self.root / f"manifest_{phash}.json"
-        p.write_text(manifest.model_dump_json(indent=2))
+        p.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")

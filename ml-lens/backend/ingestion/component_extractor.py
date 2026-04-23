@@ -18,6 +18,101 @@ DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 MAX_TEXT_CHARS = 80_000
 
+# Kind-based topological order used to infer missing depends_on.
+# Earlier kinds naturally precede later ones in a transformer data flow.
+_KIND_ORDER = [
+    "input_embedding",
+    "positional_encoding",
+    "masking",
+    "linear_projection",
+    "attention",
+    "multi_head_attention",
+    "softmax",
+    "residual",
+    "layernorm",
+    "rmsnorm",
+    "feedforward",
+    "output_head",
+    "other",
+]
+
+
+def _infer_depends_on(raw_json: dict) -> dict:
+    """Best-effort pass to fill in missing depends_on links.
+
+    Strategy (applied in order, stopping when enough connections are made):
+    1. tensor_contracts: if component A's output shapes match component B's
+       input shapes (same keys), A -> B.
+    2. Kind-based ordering: assign each component a tier from _KIND_ORDER
+       and connect sequential tiers when no connection exists.
+    """
+    comps = raw_json.get("components") or []
+    if not comps:
+        return raw_json
+
+    ids = {c["id"] for c in comps if isinstance(c, dict) and "id" in c}
+    id_list = [c["id"] for c in comps if isinstance(c, dict) and "id" in c]
+
+    # Check if graph is already well-connected (>50% of non-root nodes have deps)
+    non_root = [c for c in comps if isinstance(c, dict) and c.get("depends_on")]
+    if len(non_root) > len(comps) * 0.5:
+        return raw_json  # looks fine, skip inference
+
+    tcs = raw_json.get("tensor_contracts") or []
+    # Build output_shapes map: component_id -> set of output tensor name sets
+    tc_out: dict[str, set] = {}
+    tc_in: dict[str, set] = {}
+    for tc in tcs:
+        if not isinstance(tc, dict):
+            continue
+        cid = tc.get("component_id", "")
+        if cid:
+            tc_out[cid] = set(tc.get("output_shapes", {}).keys())
+            tc_in[cid] = set(tc.get("input_shapes", {}).keys())
+
+    # Pass 1: tensor shape key matching
+    inferred: dict[str, list[str]] = {c["id"]: [] for c in comps if isinstance(c, dict) and "id" in c}
+    for b_id in id_list:
+        b_inputs = tc_in.get(b_id, set())
+        if not b_inputs:
+            continue
+        for a_id in id_list:
+            if a_id == b_id:
+                continue
+            a_outputs = tc_out.get(a_id, set())
+            if a_outputs and b_inputs & a_outputs:  # overlapping tensor names
+                inferred[b_id].append(a_id)
+
+    # Pass 2: kind-order fallback — chain components by tier
+    def _tier(comp):
+        kind = comp.get("kind", "other") if isinstance(comp, dict) else "other"
+        try:
+            return _KIND_ORDER.index(kind)
+        except ValueError:
+            return len(_KIND_ORDER)
+
+    sorted_comps = sorted([c for c in comps if isinstance(c, dict)], key=_tier)
+    if not any(inferred.values()):  # only use kind-order if tensor matching found nothing
+        for i, comp in enumerate(sorted_comps):
+            cid = comp.get("id", "")
+            if not cid or inferred.get(cid):
+                continue
+            # connect to the previous tier component
+            if i > 0:
+                prev_id = sorted_comps[i - 1].get("id", "")
+                if prev_id and prev_id in ids:
+                    inferred[cid] = [prev_id]
+
+    # Merge inferred deps into raw_json (only for components that still have no deps)
+    for comp in comps:
+        if not isinstance(comp, dict):
+            continue
+        cid = comp.get("id", "")
+        if not comp.get("depends_on") and inferred.get(cid):
+            comp["depends_on"] = inferred[cid]
+
+    return raw_json
+
 _VALID_KINDS = {
     "input_embedding", "positional_encoding", "linear_projection", "attention",
     "multi_head_attention", "feedforward", "layernorm", "rmsnorm", "residual",
@@ -153,9 +248,9 @@ def extract_manifest(
     model: str = DEFAULT_MODEL,
 ) -> ComponentManifest:
     if client is None:
-        api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENROUTER_API_KEY")
-        if not api_key:
-            raise ComponentExtractorError("No API key found. Set ANTHROPIC_API_KEY in .env")
+        api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key or "your_" in api_key:
+            raise ComponentExtractorError("No valid API key found. Set OPENROUTER_API_KEY in .env")
         client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
 
     user_message = USER_MESSAGE_TEMPLATE.format(
@@ -183,6 +278,13 @@ def extract_manifest(
 
     raw_json = _parse_response(raw_text)
 
+    # Guard: detect if the LLM echoed back the JSON Schema instead of real data
+    if "$defs" in raw_json or "properties" in raw_json or "type" in raw_json:
+        raise ComponentExtractorError(
+            "LLM returned the JSON Schema definition instead of a populated manifest. "
+            "This usually means the model misunderstood the prompt. Try re-running ingestion."
+        )
+
     raw_json["paper"] = PaperMetadata(
         arxiv_id=paper.arxiv_id,
         title=paper.title,
@@ -195,12 +297,14 @@ def extract_manifest(
     if isinstance(raw_json.get("notes"), list):
         raw_json["notes"] = " ".join(str(n) for n in raw_json["notes"])
 
-    for comp in raw_json.get("components", []):
+    for comp in (raw_json.get("components") or []):
+        if not isinstance(comp, dict): continue
         if "kind" in comp:
             comp["kind"] = _normalize_kind(comp["kind"])
         if "quote" in comp and isinstance(comp["quote"], str):
             comp["quote"] = {"text": comp["quote"]}
-    for inv in raw_json.get("invariants", []):
+    for inv in (raw_json.get("invariants") or []):
+        if not isinstance(inv, dict): continue
         # generate id from name if missing
         if "id" not in inv and "name" in inv:
             inv["id"] = re.sub(r"[^a-z0-9]+", "_", inv["name"].lower()).strip("_")
@@ -215,7 +319,8 @@ def extract_manifest(
         if "quote" in inv and isinstance(inv["quote"], str):
             inv["quote"] = {"text": inv["quote"]}
     valid_tcs = []
-    for tc in raw_json.get("tensor_contracts", []):
+    for tc in (raw_json.get("tensor_contracts") or []):
+        if not isinstance(tc, dict): continue
         if "quote" in tc and isinstance(tc["quote"], str):
             tc["quote"] = {"text": tc["quote"]}
         # coerce common field-name variants
@@ -242,6 +347,9 @@ def extract_manifest(
                         val[k] = [v]
         valid_tcs.append(tc)
     raw_json["tensor_contracts"] = valid_tcs
+
+    # Post-process: infer missing depends_on connections
+    raw_json = _infer_depends_on(raw_json)
 
     try:
         return ComponentManifest.model_validate(raw_json)

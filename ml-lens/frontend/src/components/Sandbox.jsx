@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react'
+import React, { useCallback, useState, useMemo, useEffect } from 'react'
 import {
   ReactFlow,
   Controls,
@@ -11,15 +11,16 @@ import {
 import '@xyflow/react/dist/style.css'
 import NodeInfoPopup from './NodeInfoPopup'
 import TraversalPanel from './TraversalPanel'
-import { isModified } from '../hyperparameters'
+import { manifestToFlow } from '../utils/manifestToFlow'
 
+// ── Fallback hardcoded demo (Attention Is All You Need) ──────────────────────
 const nodeBase = { borderRadius: 8, padding: 10, fontFamily: 'Poppins, Arial, sans-serif', fontSize: 13 }
 const navyNode   = { ...nodeBase, background: '#EEF3FA', border: '1px solid #1E3A5F',  fontWeight: 600 }
 const navyStrong = { ...nodeBase, background: '#EEF3FA', border: '2px solid #1E3A5F',  fontWeight: 700 }
 const plainNode  = { ...nodeBase, background: 'white',   border: '1px solid #D6E4F0' }
 const decNode    = { ...nodeBase, background: '#FFF7ED', border: '2px solid #F97316',  fontWeight: 700 }
 
-const BASE_NODES = [
+const DEMO_NODES = [
   { id: '1',  type: 'input',  position: { x: 250, y: 0 },   data: { label: '📄 Input Tokens' },        style: navyNode },
   { id: '2',                  position: { x: 100, y: 120 },  data: { label: '🔢 Input Embedding' },      style: plainNode },
   { id: '3',                  position: { x: 400, y: 120 },  data: { label: '📍 Positional Encoding' },  style: plainNode },
@@ -32,7 +33,7 @@ const BASE_NODES = [
   { id: '10', type: 'output', position: { x: 250, y: 770 },  data: { label: '📊 Linear + Softmax' },     style: navyNode },
 ]
 
-const BASE_EDGES = [
+const DEMO_EDGES = [
   { id: 'e1-2',  source: '1', target: '2',  animated: true, style: { stroke: '#1E3A5F' } },
   { id: 'e1-3',  source: '1', target: '3',  animated: true, style: { stroke: '#1E3A5F' } },
   { id: 'e2-4',  source: '2', target: '4',  style: { stroke: '#7A93B0' } },
@@ -47,8 +48,11 @@ const BASE_EDGES = [
   { id: 'e8-10', source: '8', target: '10', style: { stroke: '#7A93B0' } },
   { id: 'e9-10', source: '9', target: '10', style: { stroke: '#7A93B0' } },
 ]
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Sandbox({
+  manifest,
+  viewMode,
   hyperparams,
   onParamChange,
   onParamReset,
@@ -56,9 +60,30 @@ export default function Sandbox({
   traversalError,
   onCloseTraversal,
 }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(BASE_NODES)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(BASE_EDGES)
+  // Derive initial nodes/edges from manifest (or demo fallback)
+  const { initialNodes, initialEdges } = useMemo(() => {
+    if (manifest?.components?.length) {
+      return { initialNodes: manifestToFlow(manifest).nodes, initialEdges: manifestToFlow(manifest).edges }
+    }
+    return { initialNodes: DEMO_NODES, initialEdges: DEMO_EDGES }
+  }, [manifest])
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [selectedNode, setSelectedNode] = useState(null)
+
+  // Re-build the graph whenever the manifest changes (e.g. new paper loaded)
+  useEffect(() => {
+    if (manifest?.components?.length) {
+      const { nodes: n, edges: e } = manifestToFlow(manifest)
+      setNodes(n)
+      setEdges(e)
+    } else {
+      setNodes(DEMO_NODES)
+      setEdges(DEMO_EDGES)
+    }
+    setSelectedNode(null)
+  }, [manifest])
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -68,42 +93,79 @@ export default function Sandbox({
   const onNodeClick = useCallback((_event, node) => setSelectedNode(node), [])
   const onPaneClick = useCallback(() => setSelectedNode(null), [])
 
-  const derivedNodes = useMemo(() =>
-    nodes.map((node) => {
-      if (!isModified(node.id, hyperparams[node.id])) return node
-      return {
-        ...node,
-        style: { ...node.style, boxShadow: '0 0 0 2px #F59E0B, 0 4px 12px rgba(245,158,11,0.25)' },
-      }
-    }),
-    [nodes, hyperparams]
-  )
+  const isManifestMode = !!(manifest?.components?.length)
 
   return (
     <div className="sandbox-canvas">
-      <ReactFlow
-        nodes={derivedNodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        fitView
-      >
-        <Controls />
-        <Background color="#E5E5E5" gap={16} />
-        <Panel position="bottom-right">
-          <div className="sandbox-legend">
-            <div className="legend-row"><span className="legend-node navy" /><span className="legend-label">Encoder</span></div>
-            <div className="legend-row"><span className="legend-node orange" /><span className="legend-label">Decoder</span></div>
-            <div className="legend-row"><span className="legend-node plain" /><span className="legend-label">Sub-layer</span></div>
-            <div className="legend-divider" />
-            <div className="legend-row"><span className="legend-edge animated" /><span className="legend-label">Data flow</span></div>
-            <div className="legend-row"><span className="legend-edge dashed" /><span className="legend-label">Cross attention</span></div>
+      {viewMode === 'model' ? (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          fitView
+        >
+          <Controls />
+          <Background color="#E5E5E5" gap={16} />
+
+          {/* Paper banner in manifest mode */}
+          {isManifestMode && (
+            <Panel position="top-center">
+              <div className="sandbox-top-controls">
+                <div className="sandbox-paper-banner">
+                  <span className="sandbox-paper-arxiv">{manifest.paper?.arxiv_id}</span>
+                  <span className="sandbox-paper-title">{manifest.paper?.title}</span>
+                  <span className="sandbox-paper-count">{manifest.components.length} components</span>
+                </div>
+              </div>
+            </Panel>
+          )}
+
+          <Panel position="bottom-right">
+            {isManifestMode ? (
+              <div className="sandbox-legend">
+                <div className="legend-row"><span className="legend-node" style={{ background: '#EDF7ED', border: '2px solid #16A34A' }} /><span className="legend-label">Attention</span></div>
+                <div className="legend-row"><span className="legend-node" style={{ background: '#FDFCE9', border: '1px solid #CA8A04' }} /><span className="legend-label">Norm</span></div>
+                <div className="legend-row"><span className="legend-node" style={{ background: '#FFF1F2', border: '1px solid #F43F5E' }} /><span className="legend-label">Masking</span></div>
+                <div className="legend-row"><span className="legend-node" style={{ background: '#EEF3FA', border: '1px solid #1E3A5F' }} /><span className="legend-label">Embedding / Head</span></div>
+                <div className="legend-row"><span className="legend-node plain" /><span className="legend-label">Other</span></div>
+              </div>
+            ) : (
+              <div className="sandbox-legend">
+                <div className="legend-row"><span className="legend-node navy" /><span className="legend-label">Encoder</span></div>
+                <div className="legend-row"><span className="legend-node orange" /><span className="legend-label">Decoder</span></div>
+                <div className="legend-row"><span className="legend-node plain" /><span className="legend-label">Sub-layer</span></div>
+                <div className="legend-divider" />
+                <div className="legend-row"><span className="legend-edge animated" /><span className="legend-label">Data flow</span></div>
+                <div className="legend-row"><span className="legend-edge dashed" /><span className="legend-label">Cross attention</span></div>
+              </div>
+            )}
+          </Panel>
+        </ReactFlow>
+      ) : (
+        <div className="code-view-container">
+          <div className="code-view-header">
+            <h3>Python Implementation</h3>
+            <span className="code-view-badge">Auto-generated from Manifest</span>
           </div>
-        </Panel>
-      </ReactFlow>
+          <div className="code-view-placeholder">
+            <div className="code-mock-line"><span>class</span> TransformerLayer(nn.Module):</div>
+            <div className="code-mock-line indent-1"><span>def</span> __init__(self, config):</div>
+            <div className="code-mock-line indent-2">super().__init__()</div>
+            <div className="code-mock-line indent-2">self.attention = MultiHeadAttention(config)</div>
+            <div className="code-mock-line indent-2">self.norm1 = nn.LayerNorm(config.hidden_size)</div>
+            <div className="code-mock-line indent-1">...</div>
+            <div className="code-empty-state">
+              <div className="code-empty-icon">🐍</div>
+              <p>Code generation is being prepared for this architecture.</p>
+              <button className="btn-primary" disabled>Generate PyTorch Source</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <NodeInfoPopup
         node={selectedNode}
@@ -111,6 +173,7 @@ export default function Sandbox({
         onParamChange={onParamChange}
         onParamReset={onParamReset}
         onClose={() => setSelectedNode(null)}
+        isManifestMode={isManifestMode}
       />
 
       {(traversalResult || traversalError) && (

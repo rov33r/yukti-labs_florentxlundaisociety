@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { PARAM_META, PARAM_DEFAULTS, isModified, getValidationWarnings } from '../hyperparameters'
+import LatexEquation from './LatexEquation'
 
 const NODE_INFO = {
   '1': {
@@ -172,9 +173,98 @@ function ParamField({ meta, value, defaultValue, onChange }) {
   )
 }
 
-export default function NodeInfoPopup({ node, params, onParamChange, onParamReset, onClose }) {
+export default function NodeInfoPopup({ node, params, onParamChange, onParamReset, onClose, isManifestMode }) {
   if (!node) return null
 
+  // ── Manifest mode: render real component data ────────────────────────────
+  if (isManifestMode) {
+    const comp = node.data?.component
+    const manifest = node.data?.manifest
+    if (!comp) return null
+
+    const tc = (manifest?.tensor_contracts ?? []).find((t) => t.component_id === comp.id)
+    const invs = (manifest?.invariants ?? []).filter((i) =>
+      (i.affected_components ?? []).includes(comp.id)
+    )
+
+    return (
+      <div className="node-popup">
+        <div className="node-popup-header">
+          <div className="node-popup-title-row">
+            <span className="node-popup-title">{comp.name}</span>
+            <span
+              className="node-popup-type-badge"
+              style={{ background: '#EDF7ED', color: '#16A34A', border: '1px solid #16A34A' }}
+            >
+              {comp.kind.replace(/_/g, ' ')}
+            </span>
+          </div>
+          <button className="node-popup-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        <div className="node-popup-body">
+          <p className="node-popup-summary">{comp.description}</p>
+
+          {comp.equations?.length > 0 && (
+            <div className="node-popup-why">
+              <span className="node-popup-why-label">Key equations</span>
+              <div className="latex-equation-list">
+                {comp.equations.map((eq, i) => (
+                  <LatexEquation key={i} src={eq} block />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {Object.keys(comp.hyperparameters ?? {}).length > 0 && (
+            <div className="node-popup-params">
+              <div className="params-header">
+                <span className="params-title">Hyperparameters</span>
+              </div>
+              <div className="params-grid">
+                {Object.entries(comp.hyperparameters).map(([k, v]) => (
+                  <React.Fragment key={k}>
+                    <label className="param-label" style={{ fontFamily: 'monospace' }}>{k}</label>
+                    <span style={{ fontSize: 12, color: '#4B5E78', alignSelf: 'center' }}>{v}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tc && (
+            <div className="node-popup-why" style={{ marginTop: 12 }}>
+              <span className="node-popup-why-label">Tensor shapes</span>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                <div><strong>In:</strong> {Object.entries(tc.input_shapes).map(([k, v]) => `${k}: [${v.join(', ')}]`).join(' · ')}</div>
+                <div><strong>Out:</strong> {Object.entries(tc.output_shapes).map(([k, v]) => `${k}: [${v.join(', ')}]`).join(' · ')}</div>
+              </div>
+            </div>
+          )}
+
+          {comp.quote?.text && (
+            <div className="node-popup-why" style={{ marginTop: 12 }}>
+              <span className="node-popup-why-label">Paper quote</span>
+              <p style={{ fontStyle: 'italic', fontSize: 12, color: '#4B5E78' }}>"{comp.quote.text}"</p>
+            </div>
+          )}
+
+          {invs.length > 0 && (
+            <div className="node-popup-why" style={{ marginTop: 12 }}>
+              <span className="node-popup-why-label">Invariants</span>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {invs.map((inv) => (
+                  <li key={inv.id} style={{ fontSize: 12, marginBottom: 4 }}>{inv.description}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Demo mode: hardcoded lookup ──────────────────────────────────────────
   const info = NODE_INFO[node.id]
   const paramMeta = PARAM_META[node.id] || []
   if (!info) return null

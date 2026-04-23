@@ -51,7 +51,7 @@ export default function LandingPage({ onEnter }) {
       }, 900)
 
       setTimeout(() => {
-        onEnter()
+        onEnter(data)  // pass the full manifest to App
       }, 2800)
     } catch (err) {
       setError(err.message)
@@ -107,7 +107,7 @@ export default function LandingPage({ onEnter }) {
                 Research paper
               </button>
             </form>
-            <button className="landing-sandbox-skip" onClick={onEnter}>
+            <button className="landing-sandbox-skip" onClick={() => onEnter(null)}>
               or open sandbox directly →
             </button>
           </>
