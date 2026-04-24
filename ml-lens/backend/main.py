@@ -36,6 +36,12 @@ from schema.models import (
 from agent import run_traversal, TraversalTrace
 from ingestion import ingest_paper, ComponentExtractorError
 
+try:
+    from routers import diff as diff_router, test as test_router
+    _diff_ok = True
+except ImportError:
+    _diff_ok = False
+
 # Configuration
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
@@ -52,6 +58,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if _diff_ok:
+    app.include_router(diff_router.router, prefix="/diff", tags=["diff"])
+    app.include_router(test_router.router, prefix="/test", tags=["test"])
 
 # ── Models ──────────────────────────────────────────────────────────────────
 class StatItem(BaseModel):
@@ -85,7 +95,7 @@ async def get_stats():
     ]
 
 @app.post("/api/chat")
-async def chat(payload: dict):
+def chat(payload: dict):
     messages = payload.get("messages", [])
     manifest = payload.get("manifest")
     
@@ -123,7 +133,8 @@ Return your response as a JSON object with:
                 {"role": "system", "content": system_prompt},
                 *messages
             ],
-            response_format={ "type": "json_object" }
+            response_format={ "type": "json_object" },
+            timeout=60,
         )
         res_data = json.loads(completion.choices[0].message.content)
         return res_data
@@ -132,7 +143,7 @@ Return your response as a JSON object with:
         return {"content": f"Error: {str(e)}", "action": None}
 
 @app.post("/api/ingest", response_model=LockedManifest)
-async def ingest(req: IngestRequest):
+def ingest(req: IngestRequest):
     try:
         manifest = ingest_paper(req.url_or_id, force_refresh=req.force_refresh)
         return lock_manifest(manifest)

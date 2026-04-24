@@ -11,25 +11,25 @@ async def run_diff_agent(
     deltas: list[HyperparamDelta],
     paper_id: str,
 ) -> SchemaDiff:
-    """Compare two traces and produce a SchemaDiff (uses Claude if API key available, else mock)."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    """Compare two traces and produce a SchemaDiff (uses OpenRouter if key available, else mock)."""
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
     if api_key:
-        return await _run_with_claude(baseline, modified, deltas, paper_id)
+        return await _run_with_llm(baseline, modified, deltas, paper_id)
     else:
         return _run_mock(baseline, modified, deltas, paper_id)
 
 
-async def _run_with_claude(
+async def _run_with_llm(
     baseline: TraversalTrace,
     modified: TraversalTrace,
     deltas: list[HyperparamDelta],
     paper_id: str,
 ) -> SchemaDiff:
-    """Use OpenRouter Claude API to analyze the diff."""
+    """Use OpenRouter to analyze the diff."""
     from openai import OpenAI
 
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
 
@@ -38,7 +38,8 @@ async def _run_with_claude(
         base_url="https://openrouter.ai/api/v1"
     )
 
-    # Build user message with both traces and deltas
+    model = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
+
     user_message = f"""
 Baseline trace:
 {json.dumps(baseline.model_dump(), indent=2)}
@@ -53,10 +54,12 @@ Analyze the tensor shape changes and explain which components changed, why, and 
 """
 
     response = client.chat.completions.create(
-        model="claude-3.5-sonnet",
+        model=model,
         max_tokens=4096,
-        system=DIFF_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+        messages=[
+            {"role": "system", "content": DIFF_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
     )
 
     text = response.choices[0].message.content

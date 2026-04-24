@@ -81,9 +81,9 @@ async def _llm_insight(
 
 
 async def run_traversal(manifest: ComponentManifest) -> TraversalTrace:
-    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise ValueError("No API key found. Set ANTHROPIC_API_KEY in .env")
+        raise ValueError("No API key found. Set OPENROUTER_API_KEY in .env")
 
     client = AsyncOpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
     model = DEFAULT_MODEL

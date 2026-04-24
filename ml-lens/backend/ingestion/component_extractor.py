@@ -270,6 +270,7 @@ def extract_manifest(
         ],
         max_tokens=8192,
         temperature=0.1,
+        timeout=180,
     )
 
     raw_text = (response.choices[0].message.content or "").strip()

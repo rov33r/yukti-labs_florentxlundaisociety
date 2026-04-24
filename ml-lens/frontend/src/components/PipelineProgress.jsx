@@ -23,7 +23,7 @@ const STAGES = [
   {
     id: 'extract',
     label: 'Extracting components',
-    desc: 'Identifying model components, equations, and hyperparameters via LLM',
+    desc: 'Identifying model components, equations, and hyperparameters via LLM — may take 1-3 min for new papers',
     estimatedMs: 18000,
   },
   {

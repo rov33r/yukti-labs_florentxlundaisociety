@@ -4,7 +4,8 @@ import AsteriskSpinner from './AsteriskSpinner'
 
 const API_BASE = 'http://localhost:8000'
 
-const ARXIV_PATTERN = /(?:arxiv\.org\/(?:abs|pdf)\/|^)([\d]{4}\.[\d]{4,5}(?:v\d+)?|[a-z\-]+\/\d{7})$/i
+// Matches bare arXiv IDs, arxiv.org URLs, and DOI URLs (e.g. doi.org/10.48550/arXiv.2410.05258)
+const ARXIV_PATTERN = /(?:arxiv\.org\/(?:abs|pdf)\/|(?:doi\.org\/[\d.]+\/(?:arxiv\.)?)|^)([\d]{4}\.[\d]{4,5}(?:v\d+)?|[a-z\-]+\/\d{7})(?:$|[^\d])/i
 
 function parseArxivId(raw) {
   const m = raw.trim().match(ARXIV_PATTERN)
@@ -29,12 +30,18 @@ export default function LandingPage({ onEnter }) {
     setResult(null)
     setPipelineDone(false)
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 240_000) // 4 min max
+
     try {
       const res = await fetch(`${API_BASE}/api/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url_or_id: parseArxivId(raw) }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Ingestion failed' }))
@@ -54,7 +61,11 @@ export default function LandingPage({ onEnter }) {
         onEnter(data)  // pass the full manifest to App
       }, 2800)
     } catch (err) {
-      setError(err.message)
+      clearTimeout(timeoutId)
+      const msg = err.name === 'AbortError'
+        ? 'Request timed out (>4 min). The LLM extractor may be overloaded — try again.'
+        : err.message
+      setError(msg)
       setPhase('error')
     }
   }
