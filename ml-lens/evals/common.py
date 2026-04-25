@@ -19,14 +19,15 @@ from openai import OpenAI
 
 EVALS_DIR = Path(__file__).resolve().parent
 FIXTURES_DIR = EVALS_DIR / "fixtures"
-ARTIFACTS_DIR = EVALS_DIR / "artifacts"
-ARTIFACTS_DIR.mkdir(exist_ok=True)
 
 # Load backend .env so OPENROUTER_MODEL is available at module level.
 load_dotenv(EVALS_DIR.parent / "backend" / ".env")
 
-# Paper used for the head-to-head eval.
-PAPER_ID = "2410.05258"
+# Paper used for the head-to-head eval — override with EVAL_PAPER env var.
+PAPER_ID = os.environ.get("EVAL_PAPER", "2410.05258")
+
+ARTIFACTS_DIR = EVALS_DIR / "artifacts" / PAPER_ID
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Fixed decoding parameters — identical for both conditions.
 MODEL_ID = os.environ.get("EVAL_MODEL", os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-120b:free"))
@@ -76,7 +77,10 @@ def load_manifest() -> dict:
 
 
 def load_ground_truth_spec() -> dict:
-    return json.loads((FIXTURES_DIR / "ground_truth_spec.json").read_text())
+    paper_spec = FIXTURES_DIR / f"ground_truth_spec_{PAPER_ID}.json"
+    fallback = FIXTURES_DIR / "ground_truth_spec.json"
+    path = paper_spec if paper_spec.exists() else fallback
+    return json.loads(path.read_text())
 
 
 def extract_python_code(llm_output: str) -> str:

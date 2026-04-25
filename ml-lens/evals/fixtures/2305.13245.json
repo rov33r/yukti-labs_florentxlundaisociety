@@ -1,0 +1,854 @@
+{
+  "paper": {
+    "arxiv_id": "2305.13245",
+    "title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+    "authors": [
+      "Joshua Ainslie",
+      "James Lee-Thorp",
+      "Michiel de Jong",
+      "Yury Zemlyanskiy",
+      "Federico Lebr\u00f3n",
+      "Sumit Sanghai"
+    ],
+    "abstract": "Multi-query attention (MQA), which only uses a single key-value head, drastically speeds up decoder inference. However, MQA can lead to quality degradation, and moreover it may not be desirable to train a separate model just for faster inference. We (1) propose a recipe for uptraining existing multi-head language model checkpoints into models with MQA using 5% of original pre-training compute, and (2) introduce grouped-query attention (GQA), a generalization of multi-query attention which uses an intermediate (more than one, less than number of query heads) number of key-value heads. We show that uptrained GQA achieves quality close to multi-head attention with comparable speed to MQA.",
+    "published": "2023-05-22T17:16:38+00:00",
+    "pdf_url": "https://arxiv.org/pdf/2305.13245v3"
+  },
+  "components": [
+    {
+      "id": "encoder_output",
+      "name": "Encoder Output (placeholder)",
+      "kind": "other",
+      "description": "Final encoder hidden states passed as Keys and Values to decoder cross-attention.",
+      "operations": [],
+      "depends_on": [],
+      "hyperparameters": {},
+      "equations": []
+    },
+    {
+      "id": "decoder_input_embedding",
+      "name": "Decoder Input Embedding",
+      "kind": "input_embedding",
+      "description": "Token embedding for decoder inputs.",
+      "operations": [
+        "lookup",
+        "scale"
+      ],
+      "depends_on": [],
+      "hyperparameters": {
+        "vocab_size": "size of decoder vocabulary",
+        "d_model": "model hidden dimension"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_positional_encoding",
+      "name": "Decoder Positional Encoding",
+      "kind": "positional_encoding",
+      "description": "Adds sinusoidal positional information to decoder embeddings.",
+      "operations": [
+        "add"
+      ],
+      "depends_on": [],
+      "hyperparameters": {
+        "max_len": "maximum sequence length"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_input",
+      "name": "Decoder Input",
+      "kind": "other",
+      "description": "Sum of token embedding and positional encoding.",
+      "operations": [
+        "add"
+      ],
+      "depends_on": [
+        "decoder_input_embedding",
+        "decoder_positional_encoding"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_query_proj",
+      "name": "Self-Attention Query Projection",
+      "kind": "linear_projection",
+      "description": "Projects decoder input to query vectors for each head.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "decoder_input"
+      ],
+      "hyperparameters": {
+        "num_heads": "H",
+        "d_head": "d_model / H"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_key_proj",
+      "name": "Self-Attention Key Projection (Grouped Query)",
+      "kind": "linear_projection",
+      "description": "Projects decoder input to a single key head per group (G groups).",
+      "operations": [
+        "mean_pool",
+        "matmul"
+      ],
+      "depends_on": [
+        "decoder_input"
+      ],
+      "hyperparameters": {
+        "num_groups": "G",
+        "d_head": "d_model / H"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_value_proj",
+      "name": "Self-Attention Value Projection (Grouped Query)",
+      "kind": "linear_projection",
+      "description": "Projects decoder input to a single value head per group (G groups).",
+      "operations": [
+        "mean_pool",
+        "matmul"
+      ],
+      "depends_on": [
+        "decoder_input"
+      ],
+      "hyperparameters": {
+        "num_groups": "G"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_attention_scores",
+      "name": "Self-Attention Score Computation",
+      "kind": "attention",
+      "description": "Computes scaled dot\u2011product attention scores QK\u1d40 / sqrt(d_head).",
+      "operations": [
+        "dot",
+        "scale"
+      ],
+      "depends_on": [
+        "self_query_proj",
+        "self_key_proj"
+      ],
+      "hyperparameters": {
+        "scale_factor": "sqrt(d_head)"
+      },
+      "equations": [
+        "\\mathrm{scores}=\\frac{Q K^{\\top}}{\\sqrt{d_{head}}}"
+      ],
+      "quote": null
+    },
+    {
+      "id": "self_attention_masking",
+      "name": "Self-Attention Causal Masking",
+      "kind": "masking",
+      "description": "Applies causal mask to prevent attending to future tokens.",
+      "operations": [
+        "apply_mask"
+      ],
+      "depends_on": [
+        "self_attention_scores"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_attention_softmax",
+      "name": "Self-Attention Softmax",
+      "kind": "softmax",
+      "description": "Normalizes masked scores into probabilities.",
+      "operations": [
+        "softmax"
+      ],
+      "depends_on": [
+        "self_attention_masking"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_attention_weighted_sum",
+      "name": "Self-Attention Weighted Sum",
+      "kind": "attention",
+      "description": "Computes weighted sum of value vectors using attention probabilities.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "self_attention_softmax",
+        "self_value_proj"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_output_proj",
+      "name": "Self-Attention Output Projection",
+      "kind": "linear_projection",
+      "description": "Projects concatenated head outputs back to model dimension.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "self_attention_weighted_sum"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_residual",
+      "name": "Self-Attention Residual Connection",
+      "kind": "residual",
+      "description": "Adds the original decoder input to the attention output.",
+      "operations": [
+        "add"
+      ],
+      "depends_on": [
+        "decoder_input",
+        "self_output_proj"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "self_layernorm",
+      "name": "Self-Attention LayerNorm",
+      "kind": "layernorm",
+      "description": "Applies layer normalization after residual.",
+      "operations": [
+        "layer_norm"
+      ],
+      "depends_on": [
+        "self_residual"
+      ],
+      "hyperparameters": {
+        "epsilon": "1e-6"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_cross_query_proj",
+      "name": "Cross-Attention Query Projection",
+      "kind": "linear_projection",
+      "description": "Projects decoder state to queries for cross\u2011attention.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "self_layernorm"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_cross_key_proj",
+      "name": "Cross-Attention Key Projection (Grouped Query)",
+      "kind": "linear_projection",
+      "description": "Projects encoder outputs to a single key head per group.",
+      "operations": [
+        "mean_pool",
+        "matmul"
+      ],
+      "depends_on": [
+        "encoder_output"
+      ],
+      "hyperparameters": {
+        "num_groups": "G"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "decoder_cross_value_proj",
+      "name": "Cross-Attention Value Projection (Grouped Query)",
+      "kind": "linear_projection",
+      "description": "Projects encoder outputs to a single value head per group.",
+      "operations": [
+        "mean_pool",
+        "matmul"
+      ],
+      "depends_on": [
+        "encoder_output"
+      ],
+      "hyperparameters": {
+        "num_groups": "G"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "cross_attention_scores",
+      "name": "Cross-Attention Score Computation",
+      "kind": "attention",
+      "description": "Computes scaled dot\u2011product between decoder queries and encoder keys.",
+      "operations": [
+        "dot",
+        "scale"
+      ],
+      "depends_on": [
+        "decoder_cross_query_proj",
+        "decoder_cross_key_proj"
+      ],
+      "hyperparameters": {
+        "scale_factor": "sqrt(d_head)"
+      },
+      "equations": [
+        "\\mathrm{scores}=\\frac{Q K^{\\top}}{\\sqrt{d_{head}}}"
+      ],
+      "quote": null
+    },
+    {
+      "id": "cross_attention_softmax",
+      "name": "Cross-Attention Softmax",
+      "kind": "softmax",
+      "description": "Normalizes cross\u2011attention scores.",
+      "operations": [
+        "softmax"
+      ],
+      "depends_on": [
+        "cross_attention_scores"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "cross_attention_weighted_sum",
+      "name": "Cross-Attention Weighted Sum",
+      "kind": "attention",
+      "description": "Weighted sum of encoder value vectors.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "cross_attention_softmax",
+        "decoder_cross_value_proj"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "cross_output_proj",
+      "name": "Cross-Attention Output Projection",
+      "kind": "linear_projection",
+      "description": "Projects concatenated cross\u2011attention heads back to model dimension.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "cross_attention_weighted_sum"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "cross_residual",
+      "name": "Cross-Attention Residual Connection",
+      "kind": "residual",
+      "description": "Adds decoder self\u2011attention output to cross\u2011attention output.",
+      "operations": [
+        "add"
+      ],
+      "depends_on": [
+        "self_layernorm",
+        "cross_output_proj"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "cross_layernorm",
+      "name": "Cross-Attention LayerNorm",
+      "kind": "layernorm",
+      "description": "Layer normalization after cross\u2011attention residual.",
+      "operations": [
+        "layer_norm"
+      ],
+      "depends_on": [
+        "cross_residual"
+      ],
+      "hyperparameters": {
+        "epsilon": "1e-6"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_linear1",
+      "name": "Feed\u2011Forward Network Linear 1",
+      "kind": "linear_projection",
+      "description": "First linear layer of the position\u2011wise feed\u2011forward network.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "cross_layernorm"
+      ],
+      "hyperparameters": {
+        "d_ff": "intermediate dimension (e.g., 4*d_model)"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_activation",
+      "name": "Feed\u2011Forward Activation",
+      "kind": "other",
+      "description": "Applies GELU activation.",
+      "operations": [
+        "gelu"
+      ],
+      "depends_on": [
+        "ffn_linear1"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_linear2",
+      "name": "Feed\u2011Forward Network Linear 2",
+      "kind": "linear_projection",
+      "description": "Second linear layer projecting back to model dimension.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "ffn_activation"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_residual",
+      "name": "Feed\u2011Forward Residual Connection",
+      "kind": "residual",
+      "description": "Adds input of feed\u2011forward block to its output.",
+      "operations": [
+        "add"
+      ],
+      "depends_on": [
+        "cross_layernorm",
+        "ffn_linear2"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "ffn_layernorm",
+      "name": "Feed\u2011Forward LayerNorm",
+      "kind": "layernorm",
+      "description": "Final layer norm before output head.",
+      "operations": [
+        "layer_norm"
+      ],
+      "depends_on": [
+        "ffn_residual"
+      ],
+      "hyperparameters": {
+        "epsilon": "1e-6"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "output_head",
+      "name": "Output Projection Head",
+      "kind": "output_head",
+      "description": "Projects final decoder representation to vocabulary logits.",
+      "operations": [
+        "matmul"
+      ],
+      "depends_on": [
+        "ffn_layernorm"
+      ],
+      "hyperparameters": {
+        "vocab_size": "size of decoder vocabulary"
+      },
+      "equations": [],
+      "quote": null
+    },
+    {
+      "id": "output_softmax",
+      "name": "Output Softmax",
+      "kind": "softmax",
+      "description": "Converts logits to probability distribution over vocabulary.",
+      "operations": [
+        "softmax"
+      ],
+      "depends_on": [
+        "output_head"
+      ],
+      "hyperparameters": {},
+      "equations": [],
+      "quote": null
+    }
+  ],
+  "tensor_contracts": [
+    {
+      "component_id": "decoder_input_embedding",
+      "input_shapes": {
+        "token_ids": [
+          "B",
+          "T"
+        ]
+      },
+      "output_shapes": {
+        "embeddings": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "decoder_positional_encoding",
+      "input_shapes": {
+        "embeddings": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "pos_enc": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_query_proj",
+      "input_shapes": {
+        "x": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "Q": [
+          "B",
+          "T",
+          "H",
+          "d_head"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_key_proj",
+      "input_shapes": {
+        "x": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "K": [
+          "B",
+          "T",
+          "G",
+          "d_head"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_value_proj",
+      "input_shapes": {
+        "x": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "V": [
+          "B",
+          "T",
+          "G",
+          "d_head"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_attention_scores",
+      "input_shapes": {
+        "Q": [
+          "B",
+          "T_q",
+          "H",
+          "d_head"
+        ],
+        "K": [
+          "B",
+          "T_k",
+          "G",
+          "d_head"
+        ]
+      },
+      "output_shapes": {
+        "scores": [
+          "B",
+          "H",
+          "T_q",
+          "T_k"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_attention_softmax",
+      "input_shapes": {
+        "scores": [
+          "B",
+          "H",
+          "T_q",
+          "T_k"
+        ]
+      },
+      "output_shapes": {
+        "attn_weights": [
+          "B",
+          "H",
+          "T_q",
+          "T_k"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_attention_weighted_sum",
+      "input_shapes": {
+        "attn_weights": [
+          "B",
+          "H",
+          "T_q",
+          "T_k"
+        ],
+        "V": [
+          "B",
+          "T_k",
+          "G",
+          "d_head"
+        ]
+      },
+      "output_shapes": {
+        "context": [
+          "B",
+          "T_q",
+          "H",
+          "d_head"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "self_output_proj",
+      "input_shapes": {
+        "context": [
+          "B",
+          "T",
+          "H",
+          "d_head"
+        ]
+      },
+      "output_shapes": {
+        "output": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "cross_attention_scores",
+      "input_shapes": {
+        "Q": [
+          "B",
+          "T_q",
+          "H",
+          "d_head"
+        ],
+        "K": [
+          "B",
+          "T_enc",
+          "G",
+          "d_head"
+        ]
+      },
+      "output_shapes": {
+        "scores": [
+          "B",
+          "H",
+          "T_q",
+          "T_enc"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "cross_attention_softmax",
+      "input_shapes": {
+        "scores": [
+          "B",
+          "H",
+          "T_q",
+          "T_enc"
+        ]
+      },
+      "output_shapes": {
+        "attn_weights": [
+          "B",
+          "H",
+          "T_q",
+          "T_enc"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "cross_attention_weighted_sum",
+      "input_shapes": {
+        "attn_weights": [
+          "B",
+          "H",
+          "T_q",
+          "T_enc"
+        ],
+        "V": [
+          "B",
+          "T_enc",
+          "G",
+          "d_head"
+        ]
+      },
+      "output_shapes": {
+        "context": [
+          "B",
+          "T_q",
+          "H",
+          "d_head"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    },
+    {
+      "component_id": "output_head",
+      "input_shapes": {
+        "x": [
+          "B",
+          "T",
+          "d_model"
+        ]
+      },
+      "output_shapes": {
+        "logits": [
+          "B",
+          "T",
+          "vocab_size"
+        ]
+      },
+      "dtype": "float32",
+      "quote": null
+    }
+  ],
+  "invariants": [
+    {
+      "id": "weight_tying_mqa",
+      "description": "Key and value projection matrices are shared across all query heads within each group (mean\u2011pooled).",
+      "kind": "weight_tying",
+      "affected_components": [
+        "self_key_proj",
+        "self_value_proj",
+        "decoder_cross_key_proj",
+        "decoder_cross_value_proj"
+      ],
+      "quote": {
+        "text": "The projection matrices for key and value heads are mean pooled into single projection matrices...",
+        "section": "Method"
+      }
+    },
+    {
+      "id": "causal_mask_self_attn",
+      "description": "Self\u2011attention applies a causal mask to prevent attending to future positions.",
+      "kind": "causal_mask",
+      "affected_components": [
+        "self_attention_masking"
+      ],
+      "quote": {
+        "text": "Autoregressive decoder inference ... memory bandwidth overhead ... multi-query attention reduces this overhead.",
+        "section": "Introduction"
+      }
+    },
+    {
+      "id": "residual_connection",
+      "description": "Each sub\u2011layer output is added to its input before layer normalization.",
+      "kind": "residual_connection",
+      "affected_components": [
+        "self_residual",
+        "cross_residual",
+        "ffn_residual"
+      ],
+      "quote": {
+        "text": "We apply MQA and GQA to decoder self\u2011attention and cross\u2011attention, but not encoder self\u2011attention.",
+        "section": "Uptraining"
+      }
+    }
+  ],
+  "symbol_table": {
+    "B": "batch size",
+    "T": "decoder sequence length",
+    "T_q": "query sequence length",
+    "T_k": "key/value sequence length",
+    "H": "total number of attention heads",
+    "G": "number of query groups (GQA)",
+    "d_model": "model hidden dimension",
+    "d_head": "dimension per head (d_model / H)",
+    "vocab_size": "size of output vocabulary"
+  },
+  "notes": "The manifest focuses on decoder self\u2011attention and cross\u2011attention as described in the paper; encoder self\u2011attention is unchanged and omitted.",
+  "locked": false
+}

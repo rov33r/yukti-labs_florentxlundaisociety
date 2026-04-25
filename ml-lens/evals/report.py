@@ -37,6 +37,10 @@ def _delta_pct(baseline_val: float, mllens_val: float) -> str:
 
 
 def write_report(results: dict[str, Any]) -> Path:
+    from common import load_ground_truth_spec
+    spec_meta = load_ground_truth_spec()
+    paper_title = spec_meta.get("paper_title", PAPER_ID)
+
     b = results.get("baseline", {})
     m = results.get("mllens", {})
 
@@ -68,7 +72,7 @@ def write_report(results: dict[str, Any]) -> Path:
     report_lines = [
         f"# ML Lens Evaluation Report",
         "",
-        f"**Paper:** [{PAPER_ID}](https://arxiv.org/abs/{PAPER_ID}) — Differential Transformer (DIFF Transformer)",
+        f"**Paper:** [{PAPER_ID}](https://arxiv.org/abs/{PAPER_ID}) — {paper_title}",
         f"**Model:** `{MODEL_ID}` (same for both conditions)",
         f"**Decoding:** temperature=0.0, single call per condition",
         "",
@@ -121,8 +125,8 @@ def write_report(results: dict[str, Any]) -> Path:
         "- ML Lens user prompt — `artifacts/mllens/prompt_user.txt`",
         "- ML Lens raw response — `artifacts/mllens/raw_response.txt`",
         "- ML Lens generated code — `artifacts/mllens/generated.py`",
-        "- Locked manifest — `fixtures/2410.05258.json`",
-        "- Traversal trace — `artifacts/traversal_trace.json`",
+        f"- Locked manifest — `fixtures/{PAPER_ID}.json`",
+        f"- Traversal trace — `artifacts/{PAPER_ID}/traversal_trace.json`",
         "",
         "## Interpretation",
         "",

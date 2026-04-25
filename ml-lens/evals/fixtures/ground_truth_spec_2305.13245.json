@@ -1,0 +1,46 @@
+{
+  "paper_id": "2305.13245",
+  "paper_title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+  "test_config": {
+    "batch_size": 2,
+    "seq_len": 32,
+    "d_model": 256,
+    "n_heads": 8,
+    "n_kv_heads": 2,
+    "n_layers": 2,
+    "vocab_size": 1000
+  },
+  "expected_top_module_keywords": ["gqa", "transformer", "model", "lm"],
+  "expected_forward_input": "token_ids of shape (B, T) long tensor",
+  "expected_forward_output_shape": ["B", "T", "vocab_size"],
+  "required_module_keywords": {
+    "embedding":            ["embedding", "embed"],
+    "grouped_query_attn":  ["gqa", "grouped", "group_query", "groupedquery", "groupquery"],
+    "feedforward":          ["feedforward", "ffn", "mlp", "feed_forward"],
+    "norm":                 ["rmsnorm", "layernorm", "norm"],
+    "decoder_layer":        ["layer", "block", "decoder"],
+    "output_head":          ["lm_head", "output", "head", "logits"]
+  },
+  "key_invariants": [
+    {
+      "id": "grouped_kv_heads",
+      "check": "K and V have n_kv_heads heads (fewer than Q's n_heads), not n_heads",
+      "keyword_hints": ["kv_heads", "num_kv", "n_kv", "group", "n_kv_heads"]
+    },
+    {
+      "id": "kv_repeat",
+      "check": "K/V heads are expanded to match Q head count before computing attention",
+      "keyword_hints": ["repeat", "expand", "repeat_interleave", "tile"]
+    },
+    {
+      "id": "causal_masking",
+      "check": "causal mask applied in attention",
+      "keyword_hints": ["causal", "tril", "triu", "mask", "-inf"]
+    },
+    {
+      "id": "residual_connections",
+      "check": "residual added after attention and FFN blocks",
+      "keyword_hints": ["+", "residual", "x +"]
+    }
+  ]
+}

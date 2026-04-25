@@ -15,8 +15,11 @@ import ast
 import json
 from pathlib import Path
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from common import load_ground_truth_spec
+
 EVALS_DIR = Path(__file__).resolve().parent.parent
-FIXTURES_DIR = EVALS_DIR / "fixtures"
 
 
 def _extract_module_classes(code: str) -> list[str]:
@@ -36,7 +39,7 @@ def _extract_module_classes(code: str) -> list[str]:
 
 
 def run(code_path: Path) -> dict:
-    spec = json.loads((FIXTURES_DIR / "ground_truth_spec.json").read_text())
+    spec = load_ground_truth_spec()
     buckets: dict[str, list[str]] = spec["required_module_keywords"]
     code = code_path.read_text()
     classes = _extract_module_classes(code)

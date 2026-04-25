@@ -13,12 +13,15 @@ import sys
 import traceback
 from pathlib import Path
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from common import load_ground_truth_spec
+
 EVALS_DIR = Path(__file__).resolve().parent.parent
-FIXTURES_DIR = EVALS_DIR / "fixtures"
 
 
 def _load_spec() -> dict:
-    return json.loads((FIXTURES_DIR / "ground_truth_spec.json").read_text())
+    return load_ground_truth_spec()
 
 
 def _import_module(code_path: Path):
@@ -97,8 +100,9 @@ def run(code_path: Path) -> dict:
             n_layers=cfg["n_layers"],
             vocab_size=cfg["vocab_size"],
         )
-        if "T_max" in cfg:
-            kwargs["T_max"] = cfg["T_max"]
+        for extra_key in ("T_max", "n_kv_heads"):
+            if extra_key in cfg:
+                kwargs[extra_key] = cfg[extra_key]
         # Drop kwargs the top class doesn't declare
         import inspect
         sig = inspect.signature(cls.__init__)
