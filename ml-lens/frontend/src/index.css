@@ -1418,6 +1418,21 @@ input:disabled {
   font-size: 14px;
 }
 
+.landing-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  animation: land-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 700ms;
+}
+
+.landing-divider {
+  color: rgba(255,255,255,0.2);
+  font-size: 13px;
+  user-select: none;
+}
+
 .landing-sandbox-skip {
   background: none;
   border: none;
@@ -1425,10 +1440,7 @@ input:disabled {
   font-family: 'Lora', Georgia, serif;
   font-size: 13px;
   color: rgba(255,255,255,0.35);
-  margin-top: 14px;
   transition: color 0.2s ease;
-  animation: land-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: 700ms;
 }
 
 .landing-sandbox-skip:hover {

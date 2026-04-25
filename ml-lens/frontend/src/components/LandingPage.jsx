@@ -19,6 +19,24 @@ export default function LandingPage({ onEnter }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result)
+        onEnter(data)
+      } catch {
+        setError('Invalid manifest JSON — could not parse file.')
+        setPhase('error')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
 
   const handleSubmit = async (e) => {
     e?.preventDefault()
@@ -118,9 +136,22 @@ export default function LandingPage({ onEnter }) {
                 Research paper
               </button>
             </form>
-            <button className="landing-sandbox-skip" onClick={() => onEnter(null)}>
-              or open sandbox directly →
-            </button>
+            <div className="landing-secondary-actions">
+              <button className="landing-sandbox-skip" onClick={() => onEnter(null)}>
+                or open sandbox directly →
+              </button>
+              <span className="landing-divider">·</span>
+              <button className="landing-sandbox-skip" onClick={() => fileInputRef.current?.click()}>
+                or load manifest JSON →
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                style={{ display: 'none' }}
+                onChange={handleImport}
+              />
+            </div>
           </>
         )}
 
