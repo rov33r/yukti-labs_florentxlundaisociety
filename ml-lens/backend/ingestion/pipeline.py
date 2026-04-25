@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from schema.models import ComponentManifest
+from schema.validator import check_graph_structure
 
 from .arxiv_resolver import resolve_arxiv
 from .cache import IngestionCache, prompt_hash
@@ -58,5 +59,10 @@ def ingest_paper(
 
     logger.info("calling LLM extractor for %s", arxiv_id)
     manifest = extract_manifest(paper, parsed)
+
+    graph_warnings = check_graph_structure(manifest)
+    for w in graph_warnings:
+        logger.warning("graph structure: %s", w)
+
     cache.set_manifest(manifest, phash)
     return manifest
