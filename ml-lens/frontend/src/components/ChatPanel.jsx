@@ -5,12 +5,15 @@ import MarkdownMessage from './MarkdownMessage'
 
 const API_BASE = 'http://localhost:8000'
 
-export default function ChatPanel() {
+export default function ChatPanel({ manifest = null }) {
+  const paperTitle = manifest?.paper?.title ?? null
   const [messages, setMessages] = useState([
     {
       id: 1,
       role: 'assistant',
-      content: "Hi! I'm here to help you understand the model components in the sandbox. Ask me anything about how they work or why the model behaves the way it does.",
+      content: paperTitle
+        ? `Schema loaded for **${paperTitle}**. Ask me anything about its components, tensor shapes, invariants, or how it differs from related architectures.`
+        : "Hi! I'm here to help you understand the model components in the sandbox. Load a paper to get schema-grounded answers.",
     },
   ])
   const [input, setInput] = useState('')
@@ -42,6 +45,7 @@ export default function ChatPanel() {
           messages: nextMessages
             .filter((m) => m.role === 'user' || m.role === 'assistant')
             .map(({ role, content }) => ({ role, content })),
+          manifest,
         }),
       })
 
@@ -75,7 +79,11 @@ export default function ChatPanel() {
 
       <div className="chat-panel-header">
         <span className="chat-panel-title">Model Chat</span>
-        <span className="badge badge-completed">Transformer</span>
+        {paperTitle && (
+          <span className="badge badge-completed" title={paperTitle}>
+            {paperTitle.length > 22 ? paperTitle.slice(0, 22) + '…' : paperTitle}
+          </span>
+        )}
       </div>
 
       <div className="chat-messages">

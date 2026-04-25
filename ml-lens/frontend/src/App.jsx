@@ -79,6 +79,18 @@ export default function App() {
     }
   }, [manifest])
 
+  const handleExport = useCallback(() => {
+    if (!manifest) return
+    const json = JSON.stringify(manifest, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${manifest.paper?.arxiv_id ?? 'manifest'}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [manifest])
+
   const handleEnter = useCallback((data) => {
     if (data === null) {
       setCurrentPage('sandbox')
@@ -113,9 +125,10 @@ export default function App() {
         traversalLoading={traversalLoading}
         onRunTraversal={handleRunTraversal}
         onGoEval={() => setCurrentPage('eval')}
+        onExport={manifest ? handleExport : null}
       />
       <div className="main-split">
-        <ChatPanel />
+        <ChatPanel manifest={manifest} />
         <Sandbox
           manifest={manifest}
           viewMode={viewMode}

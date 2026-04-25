@@ -11,6 +11,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import NodeInfoPopup from './NodeInfoPopup'
 import TraversalPanel from './TraversalPanel'
+import CodeSandbox from './CodeSandbox'
 import { manifestToFlow } from '../utils/manifestToFlow'
 
 // ── Fallback hardcoded demo (Attention Is All You Need) ──────────────────────
@@ -146,25 +147,7 @@ export default function Sandbox({
           </Panel>
         </ReactFlow>
       ) : (
-        <div className="code-view-container">
-          <div className="code-view-header">
-            <h3>Python Implementation</h3>
-            <span className="code-view-badge">Auto-generated from Manifest</span>
-          </div>
-          <div className="code-view-placeholder">
-            <div className="code-mock-line"><span>class</span> TransformerLayer(nn.Module):</div>
-            <div className="code-mock-line indent-1"><span>def</span> __init__(self, config):</div>
-            <div className="code-mock-line indent-2">super().__init__()</div>
-            <div className="code-mock-line indent-2">self.attention = MultiHeadAttention(config)</div>
-            <div className="code-mock-line indent-2">self.norm1 = nn.LayerNorm(config.hidden_size)</div>
-            <div className="code-mock-line indent-1">...</div>
-            <div className="code-empty-state">
-              <div className="code-empty-icon">🐍</div>
-              <p>Code generation is being prepared for this architecture.</p>
-              <button className="btn-primary" disabled>Generate PyTorch Source</button>
-            </div>
-          </div>
-        </div>
+        <CodeSandbox manifest={manifest} />
       )}
 
       <NodeInfoPopup

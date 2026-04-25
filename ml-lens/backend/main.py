@@ -1,11 +1,13 @@
 from __future__ import annotations
 import logging
 import os
+import re
 import ssl
 import time
 import json
 import warnings
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Literal
 
 from dotenv import load_dotenv
@@ -92,37 +94,85 @@ async def get_stats():
         {"label": "Avg Score", "value": "8.4/10", "subtext": "All evaluations"},
     ]
 
+def _build_chat_system_prompt(manifest: dict | None) -> str:
+    if not manifest:
+        return (
+            "You are the ML Lens Architect. No paper schema is loaded. "
+            "Answer general ML architecture questions concisely. "
+            "Return a JSON object with keys: \"content\" (markdown string) and \"action\" (null)."
+        )
+
+    paper = manifest.get("paper", {})
+    components = manifest.get("components", [])
+    contracts = manifest.get("tensor_contracts", [])
+    invariants = manifest.get("invariants", [])
+    symbol_table = manifest.get("symbol_table", {})
+
+    # Build compact component block
+    comp_lines = []
+    for c in components:
+        eq_str = "  equations: " + "; ".join(c.get("equations", [])) if c.get("equations") else ""
+        ops_str = "  operations: " + ", ".join(c.get("operations", [])) if c.get("operations") else ""
+        hp_str = ""
+        if c.get("hyperparameters"):
+            hp_str = "  hyperparameters: " + ", ".join(f"{k}={v}" for k, v in c["hyperparameters"].items())
+        dep_str = "  depends_on: " + ", ".join(c.get("depends_on", [])) if c.get("depends_on") else ""
+        block = f"- {c['name']} (id={c['id']}, kind={c['kind']})\n  {c.get('description', '')}"
+        for extra in [eq_str, ops_str, hp_str, dep_str]:
+            if extra:
+                block += f"\n{extra}"
+        comp_lines.append(block)
+
+    # Build tensor contract block
+    contract_lines = []
+    for tc in contracts:
+        ins = ", ".join(f"{k}: [{', '.join(str(d) for d in v)}]" for k, v in tc.get("input_shapes", {}).items())
+        outs = ", ".join(f"{k}: [{', '.join(str(d) for d in v)}]" for k, v in tc.get("output_shapes", {}).items())
+        contract_lines.append(f"- {tc['component_id']}: in=({ins}) → out=({outs}) dtype={tc.get('dtype','?')}")
+
+    # Build invariants block
+    inv_lines = [f"- [{i['kind']}] {i['description']}" for i in invariants]
+
+    # Build symbol table block
+    sym_lines = [f"  {k}: {v}" for k, v in symbol_table.items()]
+
+    return f"""You are the ML Lens Architect, an expert on the specific ML paper loaded in this session.
+Answer questions grounded strictly in the schema below. Be precise about tensor shapes, equations, and invariants.
+If the user asks about something not covered by the schema, say so explicitly rather than guessing.
+
+## Paper
+Title: {paper.get('title', 'Unknown')}
+arXiv: {paper.get('arxiv_id', '?')}
+
+## Components
+{chr(10).join(comp_lines) if comp_lines else 'None'}
+
+## Tensor Contracts
+{chr(10).join(contract_lines) if contract_lines else 'None'}
+
+## Invariants
+{chr(10).join(inv_lines) if inv_lines else 'None'}
+
+## Symbol Table
+{chr(10).join(sym_lines) if sym_lines else 'None'}
+
+## Response format
+Return ONLY a JSON object with exactly two keys:
+- "content": your markdown response (be specific, cite shapes/equations from the schema above)
+- "action": null (unless the user explicitly asks to modify the sandbox, in which case use {{"type": "duplicate_component", "payload": {{"sourceId": string, "newId": string, "name": string, "depends_on": string[]}}}})"""
+
+
 @app.post("/api/chat")
 def chat(payload: dict):
     messages = payload.get("messages", [])
     manifest = payload.get("manifest")
-    
+
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key or "your_" in api_key:
         return {"content": "OpenRouter API key is missing. Please set it in the .env file.", "action": None}
-        
-    client = OpenAI(
-        base_url=OPENROUTER_BASE_URL,
-        api_key=api_key,
-    )
 
-    system_prompt = f"""You are the ML Lens Architect. You help users understand and experiment with ML models.
-
-## Your two modes:
-1. INFORMATIONAL: If the user asks a question about ML concepts (e.g. "What is an encoder stack?"), explain it clearly. Do NOT propose an architecture change.
-2. OPERATIONAL: If the user explicitly asks to modify, duplicate, or add something to the sandbox, propose an action.
-
-## Context:
-Current model architecture: {json.dumps(manifest.get('components') if manifest else [], indent=2)}
-
-## Proposing Actions:
-If (and ONLY if) an operational change is requested, include an "action" field in your response.
-Action Schema: {{ "type": "duplicate_component", "payload": {{ "sourceId": string, "newId": string, "name": string, "depends_on": string[] }} }}
-
-Return your response as a JSON object with:
-- "content": Your markdown response.
-- "action": null OR the action object.
-"""
+    client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
+    system_prompt = _build_chat_system_prompt(manifest)
 
     try:
         completion = chat_create(
@@ -132,14 +182,90 @@ Return your response as a JSON object with:
                 {"role": "system", "content": system_prompt},
                 *messages
             ],
-            response_format={ "type": "json_object" },
             timeout=60,
         )
-        res_data = json.loads(completion.choices[0].message.content)
+        raw = completion.choices[0].message.content or ""
+        # Strip markdown fences if the model wrapped its JSON
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw.strip())
+        raw = re.sub(r"\n?```$", "", raw)
+        try:
+            res_data = json.loads(raw)
+            if "content" not in res_data:
+                res_data = {"content": raw, "action": None}
+        except json.JSONDecodeError:
+            # Model returned plain text — wrap it
+            res_data = {"content": raw, "action": None}
         return res_data
     except Exception as e:
         logging.error(f"Chat error: {e}")
         return {"content": f"Error: {str(e)}", "action": None}
+
+_CODEGEN_SYSTEM = (
+    "You are an ML engineer implementing research papers in PyTorch. "
+    "You are given a verified ComponentManifest (locked schema). "
+    "The manifest is the ground truth — your implementation MUST match the manifest's "
+    "component names, tensor contracts, and invariants exactly. "
+    "Do not invent components not in the manifest. Do not omit components that are in it. "
+    "Output ONLY a single self-contained Python file. No prose outside code comments. "
+    "The file must define one torch.nn.Module class per component and a top-level model class."
+)
+
+_CODEGEN_USER = """Implement the following paper as a single PyTorch file,
+strictly grounded to the provided manifest.
+
+Requirements:
+- Each component in `components` must map to a `nn.Module` class.
+- Honor every invariant in `invariants` (residual connections, masking, weight tying, etc.).
+- Honor every tensor contract in `tensor_contracts` — add shape comments citing them.
+- No external dependencies beyond `torch`.
+- Output ONLY the Python code inside a single ```python ... ``` fence.
+
+<manifest>
+{manifest_json}
+</manifest>
+"""
+
+@app.post("/api/codegen")
+def codegen(payload: dict):
+    manifest = payload.get("manifest")
+    if not manifest:
+        raise HTTPException(status_code=422, detail="manifest is required")
+
+    arxiv_id = manifest.get("paper", {}).get("arxiv_id", "unknown")
+    cache_path = Path(f"/tmp/ml-lens-cache/{arxiv_id}/codegen.py")
+    force_refresh = payload.get("force_refresh", False)
+
+    if not force_refresh and cache_path.exists():
+        return {"code": cache_path.read_text(), "cached": True}
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key or "your_" in api_key:
+        raise HTTPException(status_code=503, detail="OpenRouter API key missing")
+
+    client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
+    user_msg = _CODEGEN_USER.format(manifest_json=json.dumps(manifest, indent=2))
+
+    try:
+        completion = chat_create(
+            client,
+            model=DEFAULT_MODEL,
+            messages=[
+                {"role": "system", "content": _CODEGEN_SYSTEM},
+                {"role": "user", "content": user_msg},
+            ],
+            timeout=120,
+        )
+        raw = completion.choices[0].message.content or ""
+        raw = re.sub(r"^```(?:python)?\s*\n?", "", raw.strip())
+        raw = re.sub(r"\n?```$", "", raw)
+
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(raw)
+
+        return {"code": raw, "cached": False}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Codegen error: {exc}")
+
 
 @app.post("/api/ingest", response_model=LockedManifest)
 def ingest(req: IngestRequest):

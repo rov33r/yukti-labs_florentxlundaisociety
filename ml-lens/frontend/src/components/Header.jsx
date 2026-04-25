@@ -1,7 +1,7 @@
 import React from 'react'
 import AsteriskSpinner from './AsteriskSpinner'
 
-export default function Header({ viewMode, setViewMode, onRunTraversal, traversalLoading, onGoEval }) {
+export default function Header({ viewMode, setViewMode, onRunTraversal, traversalLoading, onGoEval, onExport }) {
   return (
     <header className="header">
       <div className="header-container">
@@ -37,7 +37,7 @@ export default function Header({ viewMode, setViewMode, onRunTraversal, traversa
           {onGoEval && (
             <button className="btn-ghost" onClick={onGoEval}>Eval Results</button>
           )}
-          <button className="btn-primary">Export</button>
+          <button className="btn-primary" onClick={onExport} disabled={!onExport}>Export</button>
         </div>
       </div>
     </header>
