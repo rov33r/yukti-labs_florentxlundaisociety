@@ -135,11 +135,11 @@ def write_report(results: dict[str, Any]) -> Path:
         "- Runnable / Shape: binary per axis. A flip from ❌ to ✅ is reported as +100%.",
         "- Drift: `(missing_buckets + extra_classes)`. Lower is better. ΔH = (baseline − mllens) / baseline × 100%.",
         "",
-        "The central claim is that injecting a paper-specific schema into the prompt reduces hallucination when implementing an unfamiliar paper. This report either supports or contradicts that claim on one paper — Differential Transformer (2410.05258), published 2024-10, chosen because it is a focused attention variant (λ·softmax subtraction) that baseline Claude is likely to collapse into vanilla MHA.",
+        "The central claim is that injecting a paper-specific schema into the prompt reduces hallucination when implementing an unfamiliar paper.",
         "",
     ]
 
-    out = EVALS_DIR / "REPORT.md"
+    out = ARTIFACTS_DIR / "REPORT.md"
     out.write_text("\n".join(report_lines))
     print(f"[report] wrote {out}")
     return out
