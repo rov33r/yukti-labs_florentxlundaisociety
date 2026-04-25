@@ -3,6 +3,8 @@ import Header from './components/Header'
 import ChatPanel from './components/ChatPanel'
 import Sandbox from './components/Sandbox'
 import LandingPage from './components/LandingPage'
+import SchemaReview from './components/SchemaReview'
+import EvalResults from './components/EvalResults'
 import { PARAM_DEFAULTS } from './hyperparameters'
 import './index.css'
 
@@ -10,6 +12,7 @@ const API_BASE = 'http://localhost:8000'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('landing')
+  const [lockedData, setLockedData] = useState(null)  // full LockedManifest from API
   const [manifest, setManifest] = useState(null)
   const [viewMode, setViewMode] = useState('model') // 'model' or 'code'
 
@@ -76,13 +79,30 @@ export default function App() {
     }
   }, [manifest])
 
-  if (currentPage === 'landing') {
-    return <LandingPage onEnter={(data) => {
-      // data may be a locked manifest (with .manifest) or a raw manifest or null
-      const resolved = data?.manifest ?? data ?? null
-      setManifest(resolved)
+  const handleEnter = useCallback((data) => {
+    if (data === null) {
       setCurrentPage('sandbox')
-    }} />
+      return
+    }
+    setLockedData(data)
+    setManifest(data?.manifest ?? data ?? null)
+    setCurrentPage('schema')
+  }, [])
+
+  if (currentPage === 'landing') {
+    return <LandingPage onEnter={handleEnter} />
+  }
+
+  if (currentPage === 'schema') {
+    return <SchemaReview locked={lockedData} onContinue={() => setCurrentPage('sandbox')} />
+  }
+
+  if (currentPage === 'eval') {
+    return (
+      <div className="eval-page">
+        <EvalResults onBack={() => setCurrentPage('landing')} />
+      </div>
+    )
   }
 
   return (
@@ -92,6 +112,7 @@ export default function App() {
         setViewMode={setViewMode}
         traversalLoading={traversalLoading}
         onRunTraversal={handleRunTraversal}
+        onGoEval={() => setCurrentPage('eval')}
       />
       <div className="main-split">
         <ChatPanel />

@@ -27,18 +27,15 @@ async def _run_with_llm(
     paper_id: str,
 ) -> SchemaDiff:
     """Use OpenRouter to analyze the diff."""
+    from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL, chat_create
     from openai import OpenAI
 
     api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://openrouter.ai/api/v1"
-    )
-
-    model = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
+    client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+    model = PRIMARY_MODEL
 
     user_message = f"""
 Baseline trace:
@@ -53,7 +50,8 @@ Hyperparameter deltas:
 Analyze the tensor shape changes and explain which components changed, why, and which invariants hold or break.
 """
 
-    response = client.chat.completions.create(
+    response = chat_create(
+        client,
         model=model,
         max_tokens=4096,
         messages=[

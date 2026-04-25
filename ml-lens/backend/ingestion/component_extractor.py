@@ -13,9 +13,7 @@ from schema.models import ComponentManifest, PaperMetadata
 from .arxiv_resolver import ArxivPaper
 from .pdf_parser import ParsedPaper
 from .prompts import EXTRACTION_SYSTEM_PROMPT, USER_MESSAGE_TEMPLATE
-
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL, chat_create
 MAX_TEXT_CHARS = 80_000
 
 # Kind-based topological order used to infer missing depends_on.
@@ -262,7 +260,8 @@ def extract_manifest(
         text=_truncate(parsed.text),
     )
 
-    response = client.chat.completions.create(
+    response = chat_create(
+        client,
         model=model,
         messages=[
             {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},

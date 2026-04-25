@@ -156,7 +156,7 @@ export default function LandingPage({ onEnter }) {
                 <span key={c.id} className="landing-component-chip">{c.name}</span>
               ))}
             </div>
-            <p className="landing-result-entering">Opening sandbox…</p>
+            <p className="landing-result-entering">Reviewing schema…</p>
           </div>
         )}
       </div>

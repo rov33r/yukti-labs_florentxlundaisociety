@@ -9,14 +9,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+EVALS_DIR = Path(__file__).resolve().parent.parent
+
 
 def run(code_path: Path) -> dict:
+    abs_path = code_path.resolve()
     proc = subprocess.run(
-        [sys.executable, str(code_path)],
+        [sys.executable, str(abs_path)],
         capture_output=True,
         text=True,
         timeout=90,
-        cwd=code_path.parent,
     )
     ok = proc.returncode == 0
     return {
@@ -29,6 +31,7 @@ def run(code_path: Path) -> dict:
 
 if __name__ == "__main__":
     import json
-    for p in [Path("artifacts/baseline/generated.py"), Path("artifacts/mllens/generated.py")]:
+    for p in [EVALS_DIR / "artifacts/baseline/generated.py",
+              EVALS_DIR / "artifacts/mllens/generated.py"]:
         if p.exists():
-            print(p, "→", json.dumps(run(p), indent=2))
+            print(p.name, "→", json.dumps(run(p), indent=2))

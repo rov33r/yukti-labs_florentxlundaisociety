@@ -22,11 +22,14 @@ FIXTURES_DIR = EVALS_DIR / "fixtures"
 ARTIFACTS_DIR = EVALS_DIR / "artifacts"
 ARTIFACTS_DIR.mkdir(exist_ok=True)
 
+# Load backend .env so OPENROUTER_MODEL is available at module level.
+load_dotenv(EVALS_DIR.parent / "backend" / ".env")
+
 # Paper used for the head-to-head eval.
 PAPER_ID = "2410.05258"
 
 # Fixed decoding parameters — identical for both conditions.
-MODEL_ID = os.environ.get("EVAL_MODEL", "minimax/minimax-m2.7")
+MODEL_ID = os.environ.get("EVAL_MODEL", os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-120b:free"))
 MAX_TOKENS = 4000
 TEMPERATURE = 0.0
 

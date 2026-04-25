@@ -42,9 +42,7 @@ try:
 except ImportError:
     _diff_ok = False
 
-# Configuration
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
+from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL, chat_create
 
 logger = logging.getLogger("ml_lens.backend")
 logging.basicConfig(level=logging.INFO)
@@ -127,7 +125,8 @@ Return your response as a JSON object with:
 """
 
     try:
-        completion = client.chat.completions.create(
+        completion = chat_create(
+            client,
             model=DEFAULT_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
