@@ -91,6 +91,14 @@ export default function App() {
     URL.revokeObjectURL(url)
   }, [manifest])
 
+  const handleGoHome = useCallback(() => {
+    setCurrentPage('landing')
+    setLockedData(null)
+    setManifest(null)
+    setTraversalResult(null)
+    setTraversalError(null)
+  }, [])
+
   const handleEnter = useCallback((data) => {
     if (data === null) {
       setCurrentPage('sandbox')
@@ -106,13 +114,13 @@ export default function App() {
   }
 
   if (currentPage === 'schema') {
-    return <SchemaReview locked={lockedData} onContinue={() => setCurrentPage('sandbox')} />
+    return <SchemaReview locked={lockedData} onContinue={() => setCurrentPage('sandbox')} onBack={handleGoHome} />
   }
 
   if (currentPage === 'eval') {
     return (
       <div className="eval-page">
-        <EvalResults onBack={() => setCurrentPage('landing')} />
+        <EvalResults onBack={() => setCurrentPage('sandbox')} />
       </div>
     )
   }
@@ -126,6 +134,8 @@ export default function App() {
         onRunTraversal={handleRunTraversal}
         onGoEval={() => setCurrentPage('eval')}
         onExport={manifest ? handleExport : null}
+        onGoHome={handleGoHome}
+        manifest={manifest}
       />
       <div className="main-split">
         <ChatPanel manifest={manifest} />

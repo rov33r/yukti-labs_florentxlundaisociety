@@ -72,6 +72,42 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.3px;
 }
 
+.logo-clickable {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.logo-clickable:hover {
+  color: #2B5494;
+}
+
+.header-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-breadcrumb-sep {
+  color: #C5D3E0;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.header-breadcrumb-id {
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  font-size: 12px;
+  color: #7A93B0;
+  background: #F0F4F8;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 .header-actions {
   display: flex;
   gap: 12px;
@@ -2027,6 +2063,17 @@ input:disabled {
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
+}
+
+.schema-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schema-nav-back {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .schema-nav-actions {

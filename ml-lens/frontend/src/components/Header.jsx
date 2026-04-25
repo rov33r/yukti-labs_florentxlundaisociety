@@ -1,11 +1,20 @@
 import React from 'react'
 import AsteriskSpinner from './AsteriskSpinner'
 
-export default function Header({ viewMode, setViewMode, onRunTraversal, traversalLoading, onGoEval, onExport }) {
+export default function Header({ viewMode, setViewMode, onRunTraversal, traversalLoading, onGoEval, onExport, onGoHome, manifest }) {
+  const arxivId = manifest?.paper?.arxiv_id
   return (
     <header className="header">
       <div className="header-container">
-        <h1 className="logo">Yukti</h1>
+        <div className="header-logo-group">
+          <h1 className={`logo ${onGoHome ? 'logo-clickable' : ''}`} onClick={onGoHome}>Yukti</h1>
+          {arxivId && (
+            <span className="header-breadcrumb">
+              <span className="header-breadcrumb-sep">/</span>
+              <span className="header-breadcrumb-id">{arxivId}</span>
+            </span>
+          )}
+        </div>
         
         {/* Integrated View Toggle */}
         <div className="header-view-toggle">

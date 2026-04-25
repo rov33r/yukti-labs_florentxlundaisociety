@@ -4,7 +4,7 @@ import ArchitectureFlow from './ArchitectureFlow'
 
 const API_BASE = 'http://localhost:8000'
 
-export default function SchemaReview({ locked: lockedProp = null, onContinue = null }) {
+export default function SchemaReview({ locked: lockedProp = null, onContinue = null, onBack = null }) {
   const [locked, setLocked] = useState(lockedProp)
   const [loading, setLoading] = useState(!lockedProp)
   const [error, setError] = useState(null)
@@ -63,14 +63,20 @@ export default function SchemaReview({ locked: lockedProp = null, onContinue = n
 
   if (loading) return (
     <div className="schema-page">
-      <nav className="schema-nav"><span className="logo">Yukti</span></nav>
+      <nav className="schema-nav">
+        {onBack && <button className="btn-ghost schema-nav-back" onClick={onBack}>← Home</button>}
+        <span className="logo">Yukti</span>
+      </nav>
       <div className="dashboard"><p style={{ color: '#4B5E78', padding: 32 }}>Loading schema…</p></div>
     </div>
   )
 
   if (error) return (
     <div className="schema-page">
-      <nav className="schema-nav"><span className="logo">Yukti</span></nav>
+      <nav className="schema-nav">
+        {onBack && <button className="btn-ghost schema-nav-back" onClick={onBack}>← Home</button>}
+        <span className="logo">Yukti</span>
+      </nav>
       <div className="dashboard"><p style={{ color: '#DC2626', padding: 32 }}>Error: {error}</p></div>
     </div>
   )
@@ -82,7 +88,10 @@ export default function SchemaReview({ locked: lockedProp = null, onContinue = n
     <div className="schema-page">
       {/* Sticky nav */}
       <nav className="schema-nav">
-        <span className="logo">Yukti</span>
+        <div className="schema-nav-left">
+          {onBack && <button className="btn-ghost schema-nav-back" onClick={onBack}>← Home</button>}
+          <span className="logo">Yukti</span>
+        </div>
         <div className="view-toggle">
           <button className={`toggle-btn ${view === 'flow' ? 'active' : ''}`} onClick={() => setView('flow')}>Flow</button>
           <button className={`toggle-btn ${view === 'cards' ? 'active' : ''}`} onClick={() => setView('cards')}>Cards</button>
