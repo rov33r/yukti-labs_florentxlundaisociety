@@ -94,12 +94,40 @@ async def get_stats():
         {"label": "Avg Score", "value": "8.4/10", "subtext": "All evaluations"},
     ]
 
+_EVALS_DIR = Path(__file__).parent.parent / "evals"
+
+@app.get("/api/evals/papers")
+def get_eval_papers():
+    artifacts = _EVALS_DIR / "artifacts"
+    if not artifacts.exists():
+        return []
+    return sorted(
+        d.name for d in artifacts.iterdir()
+        if d.is_dir() and (d / "results.json").exists()
+    )
+
+@app.get("/api/evals/results/{paper_id}")
+def get_eval_results(paper_id: str):
+    results_path = _EVALS_DIR / "artifacts" / paper_id / "results.json"
+    if not results_path.exists():
+        raise HTTPException(status_code=404, detail=f"No results for {paper_id}")
+    results = json.loads(results_path.read_text())
+    spec_path = _EVALS_DIR / "fixtures" / f"ground_truth_spec_{paper_id}.json"
+    spec = json.loads(spec_path.read_text()) if spec_path.exists() else {}
+    return {
+        "paper_id": paper_id,
+        "paper_title": spec.get("paper_title", paper_id),
+        "required_module_keywords": spec.get("required_module_keywords", {}),
+        "results": results,
+    }
+
+
 def _build_chat_system_prompt(manifest: dict | None) -> str:
     if not manifest:
         return (
             "You are the ML Lens Architect. No paper schema is loaded. "
             "Answer general ML architecture questions concisely. "
-            "Return a JSON object with keys: \"content\" (markdown string) and \"action\" (null)."
+            "Reply in markdown."
         )
 
     paper = manifest.get("paper", {})
@@ -157,15 +185,17 @@ arXiv: {paper.get('arxiv_id', '?')}
 {chr(10).join(sym_lines) if sym_lines else 'None'}
 
 ## Response format
-Return ONLY a JSON object with exactly two keys:
-- "content": your markdown response (be specific, cite shapes/equations from the schema above)
-- "action": null (unless the user explicitly asks to modify the sandbox, in which case use {{"type": "duplicate_component", "payload": {{"sourceId": string, "newId": string, "name": string, "depends_on": string[]}}}})"""
+Reply in markdown. Be concise and specific — cite tensor shapes and equations from the schema above.
+If the user asks about something not covered by the schema, say so explicitly rather than guessing."""
 
 
 @app.post("/api/chat")
 def chat(payload: dict):
     messages = payload.get("messages", [])
     manifest = payload.get("manifest")
+
+    if not manifest:
+        return {"content": "No paper schema loaded. Ingest a paper first to get schema-grounded answers.", "action": None}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key or "your_" in api_key:
@@ -184,18 +214,8 @@ def chat(payload: dict):
             ],
             timeout=60,
         )
-        raw = completion.choices[0].message.content or ""
-        # Strip markdown fences if the model wrapped its JSON
-        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw.strip())
-        raw = re.sub(r"\n?```$", "", raw)
-        try:
-            res_data = json.loads(raw)
-            if "content" not in res_data:
-                res_data = {"content": raw, "action": None}
-        except json.JSONDecodeError:
-            # Model returned plain text — wrap it
-            res_data = {"content": raw, "action": None}
-        return res_data
+        raw = (completion.choices[0].message.content or "").strip()
+        return {"content": raw, "action": None}
     except Exception as e:
         logging.error(f"Chat error: {e}")
         return {"content": f"Error: {str(e)}", "action": None}

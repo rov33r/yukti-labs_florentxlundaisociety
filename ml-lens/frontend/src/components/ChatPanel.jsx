@@ -27,7 +27,7 @@ export default function ChatPanel({ manifest = null }) {
 
   const send = async () => {
     const text = input.trim()
-    if (!text || loading) return
+    if (!text || loading || !manifest) return
 
     const userMsg = { id: Date.now(), role: 'user', content: text }
     const nextMessages = [...messages, userMsg]
@@ -112,16 +112,16 @@ export default function ChatPanel({ manifest = null }) {
         <textarea
           className="chat-textarea"
           rows={2}
-          placeholder="Ask about model behaviour…"
+          placeholder={manifest ? "Ask about components, shapes, invariants…" : "Load a paper to enable chat"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          disabled={loading}
+          disabled={loading || !manifest}
         />
         <button
           className="btn-primary chat-send-btn"
           onClick={send}
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || !manifest}
         >
           Send
         </button>
