@@ -8,12 +8,56 @@ hljs.registerLanguage('python', python)
 
 const API_BASE = 'http://localhost:8000'
 
+function EvalBadge({ results }) {
+  const b = results?.results?.baseline ?? {}
+  const m = results?.results?.mllens ?? {}
+  const bDrift = b.drift?.drift_errors ?? '?'
+  const mDrift = m.drift?.drift_errors ?? '?'
+  const runnable = m.runnable?.passed
+  const shapes = m.shapes?.passed
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#4B5E78', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Eval
+      </span>
+      <span style={{
+        fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
+        background: runnable ? '#F0FDF4' : '#FEF2F2',
+        color: runnable ? '#16A34A' : '#DC2626',
+        border: `1px solid ${runnable ? '#BBF7D0' : '#FECACA'}`,
+      }}>
+        {runnable ? '✅' : '❌'} Runnable
+      </span>
+      <span style={{
+        fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
+        background: shapes ? '#F0FDF4' : '#FEF2F2',
+        color: shapes ? '#16A34A' : '#DC2626',
+        border: `1px solid ${shapes ? '#BBF7D0' : '#FECACA'}`,
+      }}>
+        {shapes ? '✅' : '❌'} Shape
+      </span>
+      <span
+        title={`Drift errors: baseline ${bDrift} → ML Lens ${mDrift}`}
+        style={{
+          fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
+          background: '#F0F9FF', color: '#0369A1', border: '1px solid #BAE6FD',
+          cursor: 'help',
+        }}
+      >
+        Drift {bDrift}→{mDrift}
+      </span>
+    </div>
+  )
+}
+
 export default function CodeSandbox({ manifest }) {
   const [code, setCode] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [cached, setCached] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [evalResults, setEvalResults] = useState(null)
   const codeRef = useRef(null)
 
   useEffect(() => {
@@ -28,6 +72,13 @@ export default function CodeSandbox({ manifest }) {
     setCode(null)
     setError(null)
     setCached(false)
+    setEvalResults(null)
+    const arxivId = manifest?.paper?.arxiv_id
+    if (!arxivId) return
+    fetch(`${API_BASE}/api/evals/results/${arxivId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setEvalResults(data))
+      .catch(() => {})
   }, [manifest?.paper?.arxiv_id])
 
   const generate = useCallback(async (forceRefresh = false) => {
@@ -66,12 +117,17 @@ export default function CodeSandbox({ manifest }) {
     <div className="code-view-container">
       <div className="code-view-header">
         <div className="code-view-header-left">
-          <h3 className="code-view-title">PyTorch Implementation</h3>
-          {code && (
-            <span className={`code-view-badge ${cached ? 'badge-cached' : 'badge-grounded'}`}>
-              {cached ? 'Cached' : 'Schema-grounded'}
-            </span>
-          )}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 className="code-view-title">PyTorch Implementation</h3>
+              {code && (
+                <span className={`code-view-badge ${cached ? 'badge-cached' : 'badge-grounded'}`}>
+                  {cached ? 'Cached' : 'Schema-grounded'}
+                </span>
+              )}
+            </div>
+            {code && evalResults && <EvalBadge results={evalResults} />}
+          </div>
         </div>
         {code && (
           <div className="code-view-actions">
