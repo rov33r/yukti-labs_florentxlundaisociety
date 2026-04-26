@@ -12,7 +12,7 @@ async def run_diff_agent(
     paper_id: str,
 ) -> SchemaDiff:
     """Compare two traces and produce a SchemaDiff (uses OpenRouter if key available, else mock)."""
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
 
     if api_key:
         return await _run_with_llm(baseline, modified, deltas, paper_id)
@@ -30,7 +30,7 @@ async def _run_with_llm(
     from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL, chat_create
     from openai import OpenAI
 
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
 

@@ -92,13 +92,12 @@ Create a `.env` file in `backend/`:
 
 ```env
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
-ANTHROPIC_API_KEY=sk-or-v1-your-key-here
 OPENROUTER_MODEL=openai/gpt-4o-mini
 OPENROUTER_FALLBACK_MODEL=qwen/qwen3-coder:free
 TRAVERSAL_DEMO_MODE=true
 ```
 
-> Both `OPENROUTER_API_KEY` and `ANTHROPIC_API_KEY` should be set to your OpenRouter key. Some internal modules reference each name. `TRAVERSAL_DEMO_MODE=true` skips LLM calls in the traversal agent for faster local development.
+> `TRAVERSAL_DEMO_MODE=true` skips LLM calls in the traversal agent for faster local development.
 
 Start the backend:
 
@@ -219,7 +218,6 @@ ml-lens/
 | Variable | Description |
 |---|---|
 | `OPENROUTER_API_KEY` | Your OpenRouter key (`sk-or-v1-...`) |
-| `ANTHROPIC_API_KEY` | Set to the same OpenRouter key |
 | `OPENROUTER_MODEL` | Primary model for ingestion and chat |
 | `OPENROUTER_FALLBACK_MODEL` | Fallback if the primary model fails |
 | `TRAVERSAL_DEMO_MODE` | Set to `true` to skip LLM calls in the traversal agent |

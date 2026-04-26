@@ -13,7 +13,7 @@ FALLBACK_MODEL = os.getenv("OPENROUTER_FALLBACK_MODEL", "qwen/qwen3-coder:free")
 
 
 def _api_key() -> str:
-    return os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY", "")
+    return os.getenv("OPENROUTER_API_KEY", "")
 
 
 def make_client() -> OpenAI:

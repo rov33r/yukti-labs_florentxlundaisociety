@@ -323,7 +323,7 @@ def extract_manifest(
     model: str = DEFAULT_MODEL,
 ) -> ComponentManifest:
     if client is None:
-        api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key or "your_" in api_key:
             raise ComponentExtractorError("No valid API key found. Set OPENROUTER_API_KEY in .env")
         client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
