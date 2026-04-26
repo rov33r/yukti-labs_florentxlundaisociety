@@ -194,6 +194,7 @@ arXiv: {paper.get('arxiv_id', '?')}
 
 ## Response format
 Reply in markdown. Be concise and specific — cite tensor shapes and equations from the schema above where helpful.
+When writing mathematical expressions, use LaTeX notation: wrap inline expressions in $...$ and standalone equations in $$...$$. For example: the attention output is $\text{softmax}(QK^T / \sqrt{d_k})V$, or as a block: $$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
 If the user asks about something not covered by the schema, say so explicitly rather than guessing."""
 
 

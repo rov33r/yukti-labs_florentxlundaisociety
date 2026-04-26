@@ -1,6 +1,9 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { GLOSSARY } from '../content/glossary'
 
 const SORTED_TERMS = Object.keys(GLOSSARY)
@@ -88,7 +91,11 @@ const components = {
 export default function MarkdownMessage({ content }) {
   return (
     <div className="md-root">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>
