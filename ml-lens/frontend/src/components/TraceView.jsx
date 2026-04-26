@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { RotateCcw, Lightbulb } from 'lucide-react'
 import AsteriskSpinner from './AsteriskSpinner'
 
 const API_BASE = 'http://localhost:8000'
 
 function fmt(n) {
-  if (!n && n !== 0) return '—'
+  if (!n && n !== 0) return '?'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`
   return n.toString()
@@ -13,7 +14,11 @@ function fmt(n) {
 function StepDetail({ step }) {
   if (!step) return (
     <div className="sr-detail sr-detail-empty">
-      <p>Select a component to inspect its tensor shapes and math.</p>
+      <p className="sr-detail-empty-title">Select a step to inspect it</p>
+      <p className="sr-detail-empty-desc">
+        Each step shows how the tensor changes shape as it passes through that component.
+        Input shape goes in, the component transforms it, output shape comes out.
+      </p>
     </div>
   )
 
@@ -23,10 +28,14 @@ function StepDetail({ step }) {
         <h4 className="sr-detail-title">{step.component_name}</h4>
         <div style={{ display: 'flex', gap: 8 }}>
           {step.parameter_count > 0 && (
-            <span className="sr-param-badge">{fmt(step.parameter_count)} params</span>
+            <span className="sr-param-badge" title="Number of trainable weights in this component">
+              {fmt(step.parameter_count)} params
+            </span>
           )}
           {step.flops_approx > 0 && (
-            <span className="sr-flops-badge">{fmt(step.flops_approx)} FLOPs</span>
+            <span className="sr-flops-badge" title="Approximate floating point operations. A measure of compute cost.">
+              {fmt(step.flops_approx)} FLOPs
+            </span>
           )}
         </div>
       </div>
@@ -36,15 +45,15 @@ function StepDetail({ step }) {
           <span className="sr-shape-dir">IN</span>
           <code>[{step.input_symbolic?.join(', ')}]</code>
           {step.input_concrete?.length > 0 && (
-            <span className="sr-shape-concrete">{step.input_concrete.join('×')}</span>
+            <span className="sr-shape-concrete">{step.input_concrete.join('x')}</span>
           )}
         </div>
-        <span className="sr-shape-arrow">→</span>
+        <span className="sr-shape-arrow">to</span>
         <div className="sr-shape-pill sr-shape-out">
           <span className="sr-shape-dir">OUT</span>
           <code>[{step.output_symbolic?.join(', ')}]</code>
           {step.output_concrete?.length > 0 && (
-            <span className="sr-shape-concrete">{step.output_concrete.join('×')}</span>
+            <span className="sr-shape-concrete">{step.output_concrete.join('x')}</span>
           )}
         </div>
       </div>
@@ -76,7 +85,10 @@ function StepDetail({ step }) {
       )}
 
       {step.key_insight && (
-        <div className="sr-insight">💡 {step.key_insight}</div>
+        <div className="sr-insight">
+          <Lightbulb size={13} color="var(--c-warning)" style={{ flexShrink: 0, marginTop: 1 }} />
+          {step.key_insight}
+        </div>
       )}
     </div>
   )
@@ -112,14 +124,19 @@ export default function TraceView({ manifest }) {
     }
   }, [manifest])
 
-  // Auto-run when the paper changes
   useEffect(() => {
     if (manifest) runTraversal()
   }, [manifest?.paper?.arxiv_id])
 
   if (!manifest) return (
     <div className="trace-view-empty">
-      <p>No paper loaded — ingest a paper to run traversal.</p>
+      <div className="trace-empty-card">
+        <p className="trace-empty-title">Forward pass simulation</p>
+        <p className="trace-empty-desc">
+          Load a paper first. Once a schema is extracted, this view runs a step-by-step forward pass
+          through the architecture and shows how tensors change shape at each component.
+        </p>
+      </div>
     </div>
   )
 
@@ -127,17 +144,23 @@ export default function TraceView({ manifest }) {
     <div className="trace-view">
       <div className="trace-view-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span className="trace-view-title">Traversal Trace</span>
+          <span className="trace-view-title">Forward Pass, Step by Step</span>
           {trace && (
-            <span className="trace-view-meta">
-              {trace.total_components} components · {fmt(trace.total_parameters)} params
+            <span className="trace-view-meta"
+              title="Total learnable parameters in this model"
+            >
+              {trace.total_components} steps · {fmt(trace.total_parameters)} params
             </span>
           )}
         </div>
-        <button className="btn-ghost" onClick={runTraversal} disabled={loading} style={{ fontSize: 13 }}>
+        <button
+          className="btn-ghost trace-rerun-btn"
+          onClick={runTraversal}
+          disabled={loading}
+        >
           {loading
             ? <><AsteriskSpinner size={13} color="#4B5E78" /> Running…</>
-            : '↺ Re-run'
+            : <><RotateCcw size={13} /> Re-run</>
           }
         </button>
       </div>
@@ -157,12 +180,26 @@ export default function TraceView({ manifest }) {
           </div>
         )}
 
+        {!trace && !loading && !error && (
+          <div className="trace-view-empty">
+            <div className="trace-empty-card">
+              <p className="trace-empty-title">Forward pass simulation</p>
+              <p className="trace-empty-desc">
+                This runs a mock forward pass through the architecture and shows, step by step,
+                how the input tensor changes shape as it moves through each component.
+                It uses symbolic shapes (B = batch size, T = sequence length, D = model dimension)
+                to track the transformation.
+              </p>
+            </div>
+          </div>
+        )}
+
         {trace && !loading && (
           <div className="sr-traversal-panel trace-view-panel">
             <div className="sr-steps-list">
               <div className="sr-trace-summary">
                 <span>{trace.total_components} steps</span>
-                <span>{fmt(trace.total_parameters)} params</span>
+                <span title="Total learnable parameters in this model">{fmt(trace.total_parameters)} params</span>
               </div>
               {trace.steps.map((step, i) => (
                 <button

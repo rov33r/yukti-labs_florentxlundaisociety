@@ -1,35 +1,53 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { Sparkles, Send } from 'lucide-react'
 import LoadingBar from './LoadingBar'
-import LoadingDots from './LoadingDots'
+import AsteriskSpinner from './AsteriskSpinner'
 import MarkdownMessage from './MarkdownMessage'
 
 const API_BASE = 'http://localhost:8000'
 
+function getGreeting(paperTitle) {
+  if (paperTitle) {
+    return `I've read the full architecture spec for **${paperTitle}**. Ask me anything: what each component does, how data flows through it, why certain design choices were made, or how to read the tensor shapes. I only know what's in this paper's schema, so my answers are grounded, not guessed.`
+  }
+  return "No paper loaded yet. Head back to the home screen, paste an arXiv ID, and I'll give you grounded answers about that paper's architecture. Until then, I'm just guessing."
+}
+
+function getPromptChips(manifest) {
+  if (!manifest) return []
+  const components = manifest.components ?? manifest.manifest?.components ?? []
+  const dynamic = components
+    .filter((c) => c.kind !== 'input_embedding')
+    .slice(0, 2)
+    .map((c) => `What does the ${c.name} do and why is it here?`)
+  return [
+    'Walk me through the forward pass step by step',
+    'What makes this architecture unusual or novel?',
+    ...dynamic,
+  ]
+}
+
 export default function ChatPanel({ manifest = null }) {
-  const paperTitle = manifest?.paper?.title ?? null
+  const paperTitle = manifest?.paper?.title ?? manifest?.manifest?.paper?.title ?? null
   const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'assistant',
-      content: paperTitle
-        ? `Schema loaded for **${paperTitle}**. Ask me anything about its components, tensor shapes, invariants, or how it differs from related architectures.`
-        : "Hi! I'm here to help you understand the model components in the sandbox. Load a paper to get schema-grounded answers.",
-    },
+    { id: 1, role: 'assistant', content: getGreeting(paperTitle) },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const bottomRef = useRef(null)
 
+  const showChips = !!manifest && messages.length === 1
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  const send = async () => {
-    const text = input.trim()
-    if (!text || loading || !manifest) return
+  const send = async (text) => {
+    const msg = (text ?? input).trim()
+    if (!msg || loading || !manifest) return
 
-    const userMsg = { id: Date.now(), role: 'user', content: text }
+    const userMsg = { id: Date.now(), role: 'user', content: msg }
     const nextMessages = [...messages, userMsg]
 
     setMessages(nextMessages)
@@ -73,17 +91,18 @@ export default function ChatPanel({ manifest = null }) {
     }
   }
 
+  const chips = getPromptChips(manifest)
+
   return (
     <aside className="chat-panel">
       <LoadingBar loading={loading} label="Thinking…" />
 
       <div className="chat-panel-header">
-        <span className="chat-panel-title">Model Chat</span>
-        {paperTitle && (
-          <span className="badge badge-completed" title={paperTitle}>
-            {paperTitle.length > 22 ? paperTitle.slice(0, 22) + '…' : paperTitle}
-          </span>
-        )}
+        <div className="chat-panel-title-row">
+          <Sparkles size={13} color="var(--c-teal)" />
+          <span className="chat-panel-title">Ask Yukti</span>
+        </div>
+        <p className="chat-panel-subtitle">Schema-grounded answers only. No hallucination.</p>
       </div>
 
       <div className="chat-messages">
@@ -96,8 +115,9 @@ export default function ChatPanel({ manifest = null }) {
           </div>
         ))}
         {loading && (
-          <div className="chat-bubble assistant">
-            <LoadingDots />
+          <div className="chat-bubble assistant chat-bubble-thinking">
+            <AsteriskSpinner size={14} color="#0D9488" />
+            <span className="chat-thinking-label">Thinking…</span>
           </div>
         )}
         {error && (
@@ -107,6 +127,21 @@ export default function ChatPanel({ manifest = null }) {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {showChips && (
+        <div className="chat-prompt-chips">
+          <span className="chat-prompt-chip-label">Try asking</span>
+          {chips.map((chip) => (
+            <button
+              key={chip}
+              className="chat-prompt-chip"
+              onClick={() => send(chip)}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="chat-input-bar">
         <textarea
@@ -120,10 +155,11 @@ export default function ChatPanel({ manifest = null }) {
         />
         <button
           className="btn-primary chat-send-btn"
-          onClick={send}
+          onClick={() => send()}
           disabled={loading || !input.trim() || !manifest}
+          title="Send (Enter)"
         >
-          Send
+          <Send size={14} />
         </button>
       </div>
     </aside>

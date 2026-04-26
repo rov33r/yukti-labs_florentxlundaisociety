@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { Check, X, Copy, RotateCcw } from 'lucide-react'
 import hljs from 'highlight.js/lib/core'
 import python from 'highlight.js/lib/languages/python'
 import 'highlight.js/styles/github-dark.css'
@@ -22,30 +23,32 @@ function EvalBadge({ results }) {
         Eval
       </span>
       <span style={{
+        display: 'flex', alignItems: 'center', gap: 4,
         fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
         background: runnable ? '#F0FDF4' : '#FEF2F2',
         color: runnable ? '#16A34A' : '#DC2626',
         border: `1px solid ${runnable ? '#BBF7D0' : '#FECACA'}`,
       }}>
-        {runnable ? '✅' : '❌'} Runnable
+        {runnable ? <Check size={10} /> : <X size={10} />} Runnable
       </span>
       <span style={{
+        display: 'flex', alignItems: 'center', gap: 4,
         fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
         background: shapes ? '#F0FDF4' : '#FEF2F2',
         color: shapes ? '#16A34A' : '#DC2626',
         border: `1px solid ${shapes ? '#BBF7D0' : '#FECACA'}`,
       }}>
-        {shapes ? '✅' : '❌'} Shape
+        {shapes ? <Check size={10} /> : <X size={10} />} Shape correct
       </span>
       <span
-        title={`Drift errors: baseline ${bDrift} → ML Lens ${mDrift}`}
+        title={`Drift errors = named layers in the generated code that don't match any component in the paper. Schema injection reduced this from ${bDrift} to ${mDrift}.`}
         style={{
           fontSize: 11, padding: '2px 8px', borderRadius: 9, fontWeight: 600,
           background: '#F0F9FF', color: '#0369A1', border: '1px solid #BAE6FD',
           cursor: 'help',
         }}
       >
-        Drift {bDrift}→{mDrift}
+        Drift {bDrift} to {mDrift}
       </span>
     </div>
   )
@@ -67,7 +70,6 @@ export default function CodeSandbox({ manifest }) {
     }
   }, [code])
 
-  // Reset when a new paper is loaded
   useEffect(() => {
     setCode(null)
     setError(null)
@@ -131,15 +133,17 @@ export default function CodeSandbox({ manifest }) {
         </div>
         {code && (
           <div className="code-view-actions">
-            <button className="btn-ghost code-action-btn" onClick={copy}>
+            <button className="btn-ghost code-action-btn" onClick={copy} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Copy size={13} />
               {copied ? 'Copied!' : 'Copy'}
             </button>
             <button
               className="btn-ghost code-action-btn"
               onClick={() => generate(true)}
               disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: 5 }}
             >
-              ↺ Regenerate
+              <RotateCcw size={13} /> Regenerate
             </button>
           </div>
         )}
@@ -147,19 +151,28 @@ export default function CodeSandbox({ manifest }) {
 
       {!code && !loading && !error && (
         <div className="code-view-empty">
-          <div className="code-empty-icon">🐍</div>
           <p className="code-empty-text">
             {manifest
-              ? 'Generate a schema-grounded PyTorch implementation from the loaded manifest.'
-              : 'Load a paper first to generate its PyTorch implementation.'}
+              ? 'Ready to generate'
+              : 'Load a paper first'}
           </p>
-          <button
-            className="btn-primary"
-            onClick={() => generate(false)}
-            disabled={!manifest}
-          >
-            Generate PyTorch Source
-          </button>
+          <p className="code-empty-subtext">
+            {manifest
+              ? 'Yukti uses the locked schema, not its training data, to generate this paper\'s architecture. Components, shapes, and wiring all match the manifest.'
+              : 'Paste an arXiv ID on the home screen to get started.'}
+          </p>
+          {manifest && (
+            <>
+              <button
+                className="btn-primary"
+                onClick={() => generate(false)}
+                style={{ marginTop: 8 }}
+              >
+                Generate PyTorch Source
+              </button>
+              <p className="code-empty-grounded-note">Grounded in the schema. Not from memory.</p>
+            </>
+          )}
         </div>
       )}
 
@@ -167,7 +180,7 @@ export default function CodeSandbox({ manifest }) {
         <div className="code-view-empty">
           <AsteriskSpinner size={28} color="#4B5E78" />
           <p className="code-gen-loading-text">Generating schema-grounded code…</p>
-          <p className="code-gen-loading-sub">This may take 15–60 seconds</p>
+          <p className="code-gen-loading-sub">This may take 15 to 60 seconds</p>
         </div>
       )}
 

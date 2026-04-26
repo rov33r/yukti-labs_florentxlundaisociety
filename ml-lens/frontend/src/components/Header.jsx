@@ -1,4 +1,11 @@
 import React from 'react'
+import { Network, Code2, Activity, Download } from 'lucide-react'
+
+const VIEW_TABS = [
+  { id: 'model', icon: Network,   label: 'Model',  sub: 'Architecture diagram' },
+  { id: 'code',  icon: Code2,     label: 'Code',   sub: 'Generated PyTorch' },
+  { id: 'trace', icon: Activity,  label: 'Trace',  sub: 'Forward pass' },
+]
 
 export default function Header({ viewMode, setViewMode, onGoEval, onExport, onGoHome, manifest }) {
   const arxivId = manifest?.paper?.arxiv_id
@@ -16,31 +23,36 @@ export default function Header({ viewMode, setViewMode, onGoEval, onExport, onGo
         </div>
 
         <div className="header-view-toggle">
-          <button
-            className={`header-toggle-item ${viewMode === 'model' ? 'active' : ''}`}
-            onClick={() => setViewMode('model')}
-          >
-            <span className="toggle-icon">㗊</span> Model
-          </button>
-          <button
-            className={`header-toggle-item ${viewMode === 'code' ? 'active' : ''}`}
-            onClick={() => setViewMode('code')}
-          >
-            <span className="toggle-icon">{"</>"}</span> Code
-          </button>
-          <button
-            className={`header-toggle-item ${viewMode === 'trace' ? 'active' : ''}`}
-            onClick={() => setViewMode('trace')}
-          >
-            <span className="toggle-icon">⊢</span> Trace
-          </button>
+          {VIEW_TABS.map(({ id, icon: Icon, label, sub }) => (
+            <button
+              key={id}
+              className={`header-toggle-item ${viewMode === id ? 'active' : ''}`}
+              onClick={() => setViewMode(id)}
+            >
+              <span className="toggle-icon-wrap">
+                <Icon size={14} />
+              </span>
+              <span className="toggle-label-wrap">
+                <span className="toggle-label">{label}</span>
+                <span className="toggle-sub">{sub}</span>
+              </span>
+            </button>
+          ))}
         </div>
 
         <div className="header-actions">
           {onGoEval && (
             <button className="btn-ghost" onClick={onGoEval}>Eval Results</button>
           )}
-          <button className="btn-primary" onClick={onExport} disabled={!onExport}>Export</button>
+          <button
+            className="btn-primary header-export-btn"
+            onClick={onExport}
+            disabled={!onExport}
+            title="Download the locked schema as a .json file"
+          >
+            <Download size={13} />
+            Save Manifest
+          </button>
         </div>
       </div>
     </header>

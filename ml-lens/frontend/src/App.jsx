@@ -69,7 +69,7 @@ export default function App() {
       />
       <div className="main-split">
         <ChatPanel manifest={manifest} />
-        <Sandbox manifest={manifest} viewMode={viewMode} />
+        <Sandbox manifest={manifest} viewMode={viewMode} onGoHome={handleGoHome} />
       </div>
     </div>
   )
