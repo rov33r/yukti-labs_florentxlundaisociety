@@ -1822,12 +1822,14 @@ input:disabled {
 .landing-input {
   flex: 1;
   padding: 16px 20px;
-  background: rgba(255,255,255,0.07);
+  background: #202C3D;
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 8px;
   font-family: 'Lora', Georgia, serif;
   font-size: 16px;
   color: white;
+  color-scheme: dark;
+  -webkit-appearance: none;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
@@ -1835,16 +1837,18 @@ input:disabled {
 
 .landing-input:-webkit-autofill,
 .landing-input:-webkit-autofill:focus,
-.landing-input:-webkit-autofill:hover {
-  -webkit-box-shadow: 0 0 0 1000px #162540 inset;
-  -webkit-text-fill-color: white;
+.landing-input:-webkit-autofill:hover,
+.landing-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #202C3D inset !important;
+  -webkit-text-fill-color: white !important;
   caret-color: white;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 .landing-input:focus {
   outline: none;
   border-color: rgba(255,255,255,0.48);
-  background: rgba(255,255,255,0.1);
+  background: #273343;
 }
 
 .landing-submit-btn {

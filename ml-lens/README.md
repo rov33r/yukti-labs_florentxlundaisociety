@@ -1,350 +1,245 @@
-# ML Lens
+# Yukti
 
-> **Schema-grounded paper understanding for ML engineers.**
-> Ingest any arXiv paper, lock a verified architecture contract, and traverse it step-by-step — with tensor shapes, equations, and parameter counts that are faithful to what the paper actually specifies.
+**Understand any ML paper, component by component.**
 
----
+Yukti reads an arXiv paper, extracts every architectural decision into a verified schema, and gives you three ways to explore it: an interactive component graph, schema-grounded PyTorch code, and a chat interface that only knows what the paper actually says.
 
-## The Problem
-
-Every week, hundreds of new ML papers drop proposing novel attention mechanisms, normalisation schemes, and training objectives. For an ML engineer, the workflow is always the same:
-
-1. Read the paper *(~2 hours)*
-2. Understand the math *(~2 hours)*
-3. Ask Claude or GPT to implement it *(confident, fast, and frequently wrong)*
-
-**The problem is step 3.** Large language models hallucinate implementations by blending architectures from their training data. Ask for Differential Attention and you get vanilla multi-head attention with a lambda variable bolted on. The Q/K split is wrong. The head-wise RMSNorm is missing. The tensor shapes are off by a factor of `h`. You only find out after a cryptic CUDA error two days in.
-
-This is not a prompting problem. It is a **grounding problem.**
-
-Without a verified contract anchoring the LLM to what the paper says, the model fills gaps from memory — and for any paper published in the last six months, that memory is noise.
-
-> *70%+ of ML researchers fail to reproduce published results. The leading cause is not bad code — it is undocumented implementation decisions that deviate silently from the paper.*
+Built at the Florent x Lund AI Society Hackathon, April 2026.
+**Team:** Saksham Grover + Chamalka Muwangala
 
 ---
 
-## The Insight
+## The problem
 
-Before any implementation happens, extract a **locked schema contract** directly from the paper. Every component, every tensor shape, every invariant — tied to the exact paper quote it was extracted from. Then constrain everything downstream to that contract.
+ML papers are dense. When a new architecture drops, the workflow for most engineers looks like this:
 
-The schema is not a prompt. It is a typed, hash-locked, machine-readable specification that the traversal agent cannot deviate from. Violations are caught structurally, not at runtime.
+1. Read the paper (a few hours)
+2. Understand the math (a few more hours)
+3. Ask an LLM to implement it (fast, confident, and frequently wrong)
 
----
+Step 3 is the problem. LLMs hallucinate implementations by blending architectures from their training data. Ask for Differential Attention and you get vanilla multi-head attention with a lambda variable bolted on. The Q/K split is wrong. The head-wise RMSNorm is missing. The tensor shapes are off. You find out two days later with a cryptic CUDA error.
 
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  1. INGESTION                                                    │
-│                                                                  │
-│  arXiv URL ──► PyMuPDF + LaTeX source ──► LLM extraction        │
-│                                           (schema-injected)      │
-│                                                   │              │
-│                                                   ▼              │
-│                               ComponentManifest (raw JSON)       │
-└───────────────────────────────────────────────────┬─────────────┘
-                                                    │
-┌───────────────────────────────────────────────────▼─────────────┐
-│  2. SCHEMA CONTRACT (the key layer)                              │
-│                                                                  │
-│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
-│  │ Component        │  │ Tensor          │  │ Invariants     │  │
-│  │ Manifest         │  │ Contracts       │  │                │  │
-│  │                  │  │                 │  │ weight tying   │  │
-│  │ id, name, kind   │  │ I/O shapes per  │  │ causal masking │  │
-│  │ equations        │  │ component with  │  │ residuals      │  │
-│  │ depends_on       │  │ symbolic dims   │  │ norm placement │  │
-│  │ hyperparameters  │  │ (B, T, d, h…)   │  │                │  │
-│  └──────────────────┘  └─────────────────┘  └────────────────┘  │
-│                                                                  │
-│  ── content-hash locked ──────────────────────────────────────── │
-└───────────────────────────────────────────────────┬─────────────┘
-                                                    │
-┌───────────────────────────────────────────────────▼─────────────┐
-│  3. TRAVERSAL AGENT                                              │
-│                                                                  │
-│  Topological graph walk · deterministic math engine              │
-│  Per-step: symbolic shapes → concrete → equations → insight      │
-│  Full trace saved for replay                                     │
-└───────────────────────────────────────────────────┬─────────────┘
-                                                    │
-┌───────────────────────────────────────────────────▼─────────────┐
-│  4. VISUALIZATION + EXPORT                                       │
-│                                                                  │
-│  React Flow DAG · KaTeX equations · step scrubber                │
-│  Skill export: locked manifest + trace → portable context bundle │
-└─────────────────────────────────────────────────────────────────┘
-```
+This is not a prompting problem. It is a grounding problem. Without a verified contract anchoring the model to what the paper actually says, it fills gaps from memory, and for any paper published recently, that memory is noise.
 
 ---
 
-## Technical Architecture
+## What Yukti does
 
-### Ingestion Pipeline
+Paste an arXiv ID. Yukti reads the PDF and LaTeX source, identifies every architectural component, and locks them into a content-hashed manifest. That manifest is the source of truth for everything that follows.
 
-The ingestion pipeline runs in three cached stages:
+**Architecture DAG.** Every component in the paper rendered as a live, interactive graph. Click any node to see its equations (rendered with KaTeX), tensor shapes, invariants, and the exact paper quote it was extracted from.
 
-| Stage | Input | Output | Cache key |
-|---|---|---|---|
-| Metadata | arXiv URL / ID | Paper title, authors, PDF URL | arxiv ID |
-| Parsing | PDF bytes | Structured text + LaTeX equations | arxiv ID |
-| Extraction | Paper text + equations | Locked `ComponentManifest` | SHA-256 of prompt + text |
+**Schema-grounded code.** PyTorch generated from the locked manifest, not from the LLM's training memory. Components, shapes, and wiring all match the paper. Not hallucinated.
 
-**Parsing** uses PyMuPDF for PDF text extraction and fetches the arXiv LaTeX source tarball directly — preserving original equation notation rather than relying on PDF-rendered math. Equations are extracted via LaTeX environment regex (`equation`, `align`, `gather`) and inline math patterns.
+**Ask Yukti.** A chat interface grounded strictly in the schema. Ask what the FFN does, why a specific design choice was made, or how data flows through the network. Every answer is bounded by what the paper specifies. Math renders inline with LaTeX.
 
-**Extraction** uses a reasoning LLM (via OpenRouter) with the full `ComponentManifest` JSON Schema embedded verbatim in the system prompt. This is the key reliability mechanism: rather than asking the model to infer the output structure, we hand it the exact Pydantic schema and require strict conformance. A normalisation layer handles the remaining edge cases (quote coercion, invariant ID generation, LaTeX escape repair).
+**Forward pass trace.** A step-by-step simulation of the forward pass using symbolic tensor shapes (B, T, D). Shows how data transforms through each component, with parameter counts and FLOPs approximations per step.
 
-### Schema Contract
+**Eval results.** A head-to-head comparison of baseline code generation (no context) versus schema-grounded generation (manifest injected). The hallucination delta (dH) is the headline metric.
 
-The `ComponentManifest` is a Pydantic v2 model with a content-hash lock:
+---
 
-```python
-class ComponentManifest(BaseModel):
-    paper: PaperMetadata
-    components: list[Component]          # typed by ComponentKind enum
-    tensor_contracts: list[TensorContract]  # input/output shapes per component
-    invariants: list[Invariant]          # paper-specific structural rules
-    symbol_table: dict[str, str]         # every dimension variable defined
-    notes: Optional[str]
-    locked: bool
+## Results
 
-class TensorContract(BaseModel):
-    component_id: str
-    input_shapes: dict[str, list[str]]   # e.g. {"Q": ["B", "T", "d_model"]}
-    output_shapes: dict[str, list[str]]
-    dtype: Optional[str]
+We evaluated on two published papers. Same model, same prompt, same paper text. The only difference was whether the schema was injected.
 
-class Invariant(BaseModel):
-    id: str
-    description: str
-    kind: InvariantKind                  # weight_tying | causal_mask | residual_connection | …
-    affected_components: list[str]
-```
+### Differential Transformer (2410.05258)
 
-`ComponentKind` is a strict enum: `input_embedding`, `positional_encoding`, `multi_head_attention`, `attention`, `feedforward`, `layernorm`, `rmsnorm`, `residual`, `softmax`, `masking`, `linear_projection`, `output_head`, `other`. The LLM cannot invent kinds outside this set.
-
-Locking computes `SHA-256(json.dumps(manifest, sort_keys=True))` and stamps a timestamp. The locked manifest is the only input the traversal agent accepts.
-
-### Traversal Agent
-
-The traversal agent walks the component graph in topological order (longest-path level assignment, sequential fallback for isolated nodes). For each component:
-
-1. **Math engine** computes deterministically:
-   - Parameter count (weights + biases per component kind)
-   - FLOPs approximation (matrix multiply dominant cost)
-   - Intermediate tensor names, symbolic shapes, and LaTeX equations
-   - Concrete shapes given the manifest's hyperparameters
-
-2. **LLM insight call** (optional, skippable via `TRAVERSAL_DEMO_MODE`) produces a one-sentence key insight per component
-
-3. **TraversalStep** is recorded: input/output symbolic + concrete shapes, equations applied, intermediates, parameter count, FLOPs
-
-The math engine covers all 10 component kinds with dedicated functions — no component falls through to a passthrough. Parameter counts and shapes are computed from manifest hyperparameters, not estimated.
-
-### Visualization
-
-The frontend is a React + Vite app using `@xyflow/react` for the DAG and KaTeX for equation rendering.
-
-**Layout algorithm:** longest-path level assignment on the `depends_on` DAG. Nodes at the same level are centred horizontally. Explicit `depends_on` edges render as solid teal arrows; sequential fallback edges render as dashed grey. Node width is fixed at 210px; height is auto to prevent content truncation.
-
-**Traversal replay:** the trace is auto-stepped at 1.2s/step with a manual scrubber. Active nodes get a coloured glow matching their component kind. Shape row updates on the active node: `[B, T, d_model] → [B, T, d_model]` in monospace.
-
-**Cards view:** each component rendered as a card with kind badge, equations (KaTeX), tensor contract (input → output shape tags), invariant links, and the paper quote the data was extracted from.
-
-### Hyperparameter Diff (Sandbox)
-
-The sandbox layer extends the pipeline with a hyperparameter diff agent:
-
-- `POST /diff/` accepts a locked manifest, base params, and a list of `HyperparamDelta`
-- Generates and executes PyTorch forward-pass scripts for both base and modified configs via E2B sandboxed execution
-- A diff agent (Claude) compares the two `TraversalTrace` outputs and produces a `SchemaDiff`: per-component shape changes, parameter deltas, invariant status, and implementation notes
-
-### Hallucination Eval Framework
-
-The eval framework measures whether ML Lens's schema context reduces hallucination when asking an LLM to implement a paper.
-
-**Two conditions, one variable:**
-
-| | Baseline | ML Lens |
+| Metric | Without Yukti | With Yukti |
 |---|---|---|
-| Model | `minimax/minimax-m2.7` | `minimax/minimax-m2.7` |
-| Paper text | Full PyMuPDF extraction | Full PyMuPDF extraction |
-| Output contract | Single PyTorch file | Single PyTorch file |
-| Extra context | — | `<manifest>` + `<traversal_trace>` JSON |
+| Code runs | No | Yes |
+| Shape correct | No | Yes |
+| Drift errors | 4 | 1 |
+| Architecture sections covered | 2 / 5 | 5 / 5 |
 
-**Three automated test axes:**
+### Grouped-Query Attention (2305.13245)
 
-| Axis | Method | What it measures |
+| Metric | Without Yukti | With Yukti |
 |---|---|---|
-| **Runnable** | `subprocess.run(generated.py)`, exit 0 | Does the file execute at all |
-| **Shape** | Import, instantiate top-level class, run forward pass | Is `output.shape == (B, T, vocab_size)` |
-| **Drift** | AST-extract `nn.Module` subclasses, map to architectural buckets | Missing + extra components vs the locked manifest |
+| Code runs | No | Yes |
+| Shape correct | No | Yes |
+| Drift errors | 5 | 4 |
+| Architecture sections covered | 2 / 5 | 5 / 5 |
 
-**ΔH (hallucination delta)** = `(baseline_errors − mllens_errors) / baseline_errors × 100%` per axis.
-
-Target paper: [Differential Transformer (2410.05258)](https://arxiv.org/abs/2410.05258) — a focused attention variant (`softmax(Q1,K1) − λ·softmax(Q2,K2)`) published October 2024, chosen because baseline LLMs are likely to collapse it to standard MHA.
-
----
-
-## Project Structure
-
-```
-ml-lens/
-├── backend/
-│   ├── ingestion/
-│   │   ├── arxiv_resolver.py      # arXiv ID → metadata + PDF URL
-│   │   ├── pdf_parser.py          # PyMuPDF + LaTeX tarball extraction
-│   │   ├── component_extractor.py # LLM extraction + normalisation
-│   │   ├── prompts.py             # JSON Schema injected into system prompt
-│   │   ├── pipeline.py            # 3-stage cached orchestrator
-│   │   └── cache.py               # /tmp/ml-lens-cache/{arxiv_id}/
-│   ├── agent/
-│   │   ├── traversal_agent.py     # topological walk, per-component trace
-│   │   ├── math_engine.py         # deterministic params/FLOPs/shapes
-│   │   └── models.py              # TraversalStep, TraversalTrace
-│   ├── schema/
-│   │   ├── models.py              # ComponentManifest + all Pydantic models
-│   │   ├── lock.py                # SHA-256 content-hash locking
-│   │   └── validator.py           # JSON Schema export for frontend
-│   ├── sandbox/
-│   │   ├── executor.py            # E2B sandbox runner
-│   │   ├── trace_emitter.py       # generates PyTorch forward-pass scripts
-│   │   └── result_parser.py       # E2B stdout → TraversalTrace
-│   ├── routers/
-│   │   ├── diff.py                # POST /diff/ — hyperparameter diff agent
-│   │   └── test.py                # GET /test/diff-demo — interactive demo page
-│   └── main.py                    # FastAPI app, CORS, route registration
-├── frontend/
-│   └── src/
-│       ├── components/
-│       │   ├── Sandbox.jsx            # React Flow DAG + hyperparameter controls
-│       │   ├── ArchitectureFlow.jsx   # ingest-driven architecture graph
-│       │   ├── SchemaReview.jsx       # schema review + traversal replay
-│       │   ├── SchemaContractCard.jsx # component card with equations + quotes
-│       │   ├── NodeInfoPopup.jsx      # click-on-node detail panel
-│       │   ├── TraversalPanel.jsx     # step trace + shape flow
-│       │   └── DiffPanel.jsx          # hyperparameter diff visualisation
-│       ├── store/diffStore.js         # Zustand diff state
-│       └── api/client.js             # typed fetch wrappers
-├── evals/
-│   ├── baseline.py                # bare LLM → PyTorch (no schema context)
-│   ├── runner.py                  # LLM + manifest + trace → PyTorch
-│   ├── common.py                  # shared client, artifact helpers
-│   ├── run_eval.py                # orchestrator: generate + test + report
-│   ├── report.py                  # markdown ΔH report generator
-│   ├── tests/
-│   │   ├── test_runnable.py       # subprocess exit-code check
-│   │   ├── test_shapes.py         # forward pass shape verification
-│   │   └── test_drift.py          # AST-based architectural bucket coverage
-│   └── fixtures/
-│       ├── 2410.05258.json        # Differential Transformer locked manifest
-│       └── ground_truth_spec.json # test config, expected buckets, invariants
-└── shared/
-    ├── schema.json                # Pydantic-generated JSON Schema (single source of truth)
-    └── schema.ts                  # TypeScript types derived from schema.json
-```
+The schema is the difference between code that crashes and code that runs.
 
 ---
 
-## Quickstart
+## Getting started
 
 ### Requirements
 
 - Python 3.12+
 - Node.js 18+
-- An [OpenRouter](https://openrouter.ai) API key
+- An [OpenRouter](https://openrouter.ai) API key (free tier works)
 
-### Backend
+### 1. Clone the repo
 
 ```bash
-cd ml-lens/backend
+git clone https://github.com/rov33r/yukti-labs_florentxlundaisociety.git
+cd yukti-labs_florentxlundaisociety/ml-lens
+```
+
+### 2. Set up the backend
+
+```bash
+cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-# Create .env with your OpenRouter key
-echo "ANTHROPIC_API_KEY=sk-or-v1-..." > .env
+Create a `.env` file in `backend/`:
 
+```env
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+ANTHROPIC_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_MODEL=openai/gpt-4o-mini
+OPENROUTER_FALLBACK_MODEL=qwen/qwen3-coder:free
+TRAVERSAL_DEMO_MODE=true
+```
+
+> Both `OPENROUTER_API_KEY` and `ANTHROPIC_API_KEY` should be set to your OpenRouter key. Some internal modules reference each name. `TRAVERSAL_DEMO_MODE=true` skips LLM calls in the traversal agent for faster local development.
+
+Start the backend:
+
+```bash
 uvicorn main:app --reload --port 8000
 ```
 
-### Frontend
+### 3. Set up the frontend
 
 ```bash
-cd ml-lens/frontend
+cd frontend
 npm install
 npm run dev
-# → http://localhost:5173
 ```
 
-### Analyse a paper
+Open [http://localhost:5173](http://localhost:5173).
 
-1. Open `http://localhost:5173`
-2. Paste an arXiv URL — e.g. `https://arxiv.org/abs/2410.05258`
-3. Hit **Analyse** — ingestion runs, manifest is extracted and locked
-4. Switch to **Flow** to see the architecture DAG
-5. Click **▶ Run Traversal** — agent walks the graph step by step
-6. Click any node or step to see tensor shapes, equations, and key insights
+### 4. Analyse a paper
 
-### Run the hallucination eval
+1. Paste an arXiv ID into the input field, for example `2410.05258`
+2. Click **Research paper** and wait for ingestion to complete (30 to 90 seconds depending on the model)
+3. You land in **Schema Review**, showing the locked manifest as an interactive DAG
+4. Click **Explore in Sandbox** to switch between the graph, code, and trace views
+5. Open the chat panel on the right to ask questions about the architecture
+6. Click **Eval Results** in the header to see the hallucination comparison
+
+To skip straight to a preloaded example, click **or open sandbox directly** on the landing page.
+
+---
+
+## Running the eval
+
+The eval framework generates PyTorch implementations under two conditions (baseline and schema-grounded), then scores them on three automated axes: runnability, shape correctness, and architectural drift.
 
 ```bash
-cd ml-lens/evals
+cd evals
+
+# Generate code and run all tests
+../backend/.venv/bin/python runner.py
 ../backend/.venv/bin/python run_eval.py
-# → evals/REPORT.md  (baseline vs ML Lens, per-axis ΔH)
-```
 
-To reuse existing generated code and only re-run tests:
-
-```bash
+# Skip code generation and reuse existing artifacts
 ../backend/.venv/bin/python run_eval.py --skip-gen
 ```
 
+Results are written to `evals/artifacts/{arxiv_id}/REPORT.md` and served live from the Eval Results page in the app.
+
 ---
 
-## API Reference
+## Project structure
+
+```
+ml-lens/
+├── backend/
+│   ├── ingestion/
+│   │   ├── arxiv_resolver.py       arXiv ID to metadata and PDF URL
+│   │   ├── pdf_parser.py           PyMuPDF + LaTeX source extraction
+│   │   ├── component_extractor.py  LLM extraction and manifest normalisation
+│   │   ├── prompts.py              JSON Schema embedded in system prompt
+│   │   ├── pipeline.py             Three-stage cached orchestrator
+│   │   └── cache.py                /tmp/ml-lens-cache/{arxiv_id}/
+│   ├── agent/
+│   │   ├── traversal_agent.py      Topological graph walk, per-component trace
+│   │   ├── math_engine.py          Deterministic params, FLOPs, and shapes
+│   │   └── models.py               TraversalStep, TraversalTrace
+│   ├── schema/
+│   │   ├── models.py               ComponentManifest and all Pydantic models
+│   │   ├── lock.py                 SHA-256 content-hash locking
+│   │   └── validator.py            JSON Schema export
+│   ├── llm.py                      Centralised LLM client, primary + fallback routing
+│   └── main.py                     FastAPI app, all routes
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── LandingPage.jsx     Hero, how-it-works steps, feature previews, proof strip
+│       │   ├── SchemaReview.jsx    Locked manifest as DAG or card view, traversal replay
+│       │   ├── Sandbox.jsx         Three-view explorer (model, code, trace)
+│       │   ├── ArchitectureFlow.jsx React Flow DAG with kind-coloured nodes
+│       │   ├── TraceView.jsx       Forward pass step-by-step with tensor shapes
+│       │   ├── CodeSandbox.jsx     Schema-grounded PyTorch code generation
+│       │   ├── ChatPanel.jsx       Ask Yukti, schema-grounded chat with LaTeX rendering
+│       │   ├── NodeInfoPopup.jsx   Click-on-node panel with equations and paper quotes
+│       │   ├── EvalResults.jsx     Hallucination delta comparison, auto-generated summary
+│       │   ├── MarkdownMessage.jsx Markdown with glossary tooltips and LaTeX rendering
+│       │   └── Header.jsx          View toggle, Save Manifest, Eval Results
+│       └── content/
+│           └── glossary.js         17 plain-English ML term definitions
+└── evals/
+    ├── runner.py                   Generates baseline and schema-grounded code
+    ├── run_eval.py                 Orchestrates generation, testing, and reporting
+    ├── report.py                   Markdown dH report generator
+    ├── tests/
+    │   ├── test_runnable.py        Subprocess exit-code check
+    │   ├── test_shapes.py          Forward pass output shape verification
+    │   └── test_drift.py           AST-based architectural bucket coverage
+    └── artifacts/
+        └── {arxiv_id}/             Per-paper: REPORT.md, results.json, generated code
+```
+
+---
+
+## API reference
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| `POST` | `/api/ingest` | `{"url_or_id": "2410.05258"}` | `LockedManifest` |
-| `POST` | `/api/traverse` | `ComponentManifest` | `TraversalTrace` |
-| `POST` | `/diff/` | `{manifest, base_params, deltas}` | `{baseline_trace, modified_trace, schema_diff}` |
-| `GET` | `/api/schema` | — | JSON Schema for `ComponentManifest` |
-| `GET` | `/api/schema/sample` | — | Sample locked manifest |
-| `GET` | `/health` | — | `{"status": "healthy"}` |
+| `POST` | `/api/ingest` | `{"url_or_id": "2410.05258"}` | Locked manifest |
+| `POST` | `/api/traverse` | `ComponentManifest` | Traversal trace |
+| `POST` | `/api/chat` | `{"message": "...", "manifest": {...}}` | Streamed chat response |
+| `GET` | `/api/schema/sample` | | Sample locked manifest |
+| `GET` | `/api/evals/papers` | | List of evaluated paper IDs |
+| `GET` | `/api/evals/results/{paper_id}` | | Full eval results for one paper |
+| `GET` | `/health` | | `{"status": "healthy"}` |
 
 ---
 
-## Environment Variables
+## Environment variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | — | OpenRouter key (`sk-or-v1-…`) |
-| `OPENROUTER_MODEL` | No | `minimax/minimax-m2.7` | Model for ingestion extraction |
-| `EVAL_MODEL` | No | `minimax/minimax-m2.7` | Model for eval conditions |
-| `TRAVERSAL_DEMO_MODE` | No | `false` | Skip LLM insight calls for instant traversal |
-| `DISABLE_SSL_VERIFY` | No | `false` | Disable SSL verification (dev only) |
-
----
-
-## Built With
-
-| Layer | Tool | Why |
-|---|---|---|
-| PDF parsing | PyMuPDF + arXiv LaTeX | Preserves original equation notation |
-| LLM routing | OpenRouter | Model-agnostic; same key for ingestion and eval |
-| Schema validation | Pydantic v2 | Typed contracts, JSON Schema export, hash locking |
-| API | FastAPI | Async, typed, minimal |
-| Architecture graph | @xyflow/react | Purpose-built for node graphs, custom nodes |
-| Math rendering | KaTeX | Fast, lightweight, no MathJax overhead |
-| Sandboxed execution | E2B | Sub-second boot, PyTorch pre-installed |
-| State management | Zustand | Minimal; holds diff state and trace replay index |
+| Variable | Description |
+|---|---|
+| `OPENROUTER_API_KEY` | Your OpenRouter key (`sk-or-v1-...`) |
+| `ANTHROPIC_API_KEY` | Set to the same OpenRouter key |
+| `OPENROUTER_MODEL` | Primary model for ingestion and chat |
+| `OPENROUTER_FALLBACK_MODEL` | Fallback if the primary model fails |
+| `TRAVERSAL_DEMO_MODE` | Set to `true` to skip LLM calls in the traversal agent |
 
 ---
 
-## Team
+## Stack
 
-**Saksham Grover + Chamalka Muwangala**
+| Layer | Tool |
+|---|---|
+| PDF parsing | PyMuPDF + arXiv LaTeX source |
+| LLM routing | OpenRouter (primary + fallback, centralised in `llm.py`) |
+| Schema validation | Pydantic v2, SHA-256 content-hash locking |
+| API | FastAPI |
+| Architecture graph | @xyflow/react |
+| Math rendering | KaTeX (via remark-math + rehype-katex in chat, react-katex in nodes) |
+| Fonts | Poppins, Lora, JetBrains Mono |
 
-Built at the Florent × Lund AI Society Hackathon — *Build Your Next Startup* — April 18, 2026.
+---
 
-Sponsored by Anthropic · Voyado · Specific (YC F25) · Atech · Librar Labs (YC W26)
+## Sponsors
+
+Anthropic · Voyado · Specific (YC F25) · Atech · Librar Labs (YC W26)
