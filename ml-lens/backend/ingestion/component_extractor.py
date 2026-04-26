@@ -13,9 +13,7 @@ from schema.models import ComponentManifest, PaperMetadata
 from .arxiv_resolver import ArxivPaper
 from .pdf_parser import ParsedPaper
 from .prompts import EXTRACTION_SYSTEM_PROMPT, USER_MESSAGE_TEMPLATE
-
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL, chat_create
 MAX_TEXT_CHARS = 80_000
 
 # Kind-based topological order used to infer missing depends_on.
@@ -35,6 +33,83 @@ _KIND_ORDER = [
     "output_head",
     "other",
 ]
+
+
+_CROSS_ATTN_SIGNALS = {"cross", "encoder_decoder", "encoder-decoder", "cross_attention", "cross-attention"}
+_ENCODER_TERMINAL_KINDS = {"layernorm", "rmsnorm", "feedforward", "residual"}
+_ENCODER_NAME_SIGNALS = {"encoder"}
+_DECODER_NAME_SIGNALS = {"decoder"}
+
+
+def _fix_cross_attention_deps(raw_json: dict) -> dict:
+    """Ensure every cross-attention (encoder-decoder attention) component has both
+    its decoder-side upstream AND the encoder final-output upstream in depends_on.
+
+    The LLM frequently forgets the encoder→cross-attention edge, leaving the
+    encoder and decoder as two disconnected trees. This pass detects and repairs it.
+    """
+    comps = raw_json.get("components") or []
+    if not comps:
+        return raw_json
+
+    id_to_comp = {c["id"]: c for c in comps if isinstance(c, dict) and "id" in c}
+
+    # Identify which ids are "encoder-side" vs "decoder-side" by name prefix
+    enc_ids = {c["id"] for c in comps if isinstance(c, dict) and
+               any(sig in c.get("id", "").lower() or sig in c.get("name", "").lower()
+                   for sig in _ENCODER_NAME_SIGNALS)
+               and not any(sig in c.get("id", "").lower() or sig in c.get("name", "").lower()
+                           for sig in _DECODER_NAME_SIGNALS)}
+    dec_ids = {c["id"] for c in comps if isinstance(c, dict) and
+               any(sig in c.get("id", "").lower() or sig in c.get("name", "").lower()
+                   for sig in _DECODER_NAME_SIGNALS)}
+
+    if not enc_ids or not dec_ids:
+        return raw_json  # encoder-only or decoder-only architecture — nothing to repair
+
+    # Find cross-attention components: kind is multi_head_attention / attention AND
+    # name/id contains a cross-attention signal word
+    cross_attn_comps = [
+        c for c in comps
+        if isinstance(c, dict)
+        and c.get("kind") in ("multi_head_attention", "attention")
+        and any(sig in c.get("id", "").lower() or sig in c.get("name", "").lower()
+                for sig in _CROSS_ATTN_SIGNALS)
+    ]
+
+    if not cross_attn_comps:
+        return raw_json
+
+    # Find the "encoder terminal" — the encoder-side component farthest downstream.
+    # It is the encoder id that no other encoder component depends on.
+    enc_deps = set()
+    for c in comps:
+        if not isinstance(c, dict): continue
+        for dep in c.get("depends_on", []):
+            if dep in enc_ids:
+                enc_deps.add(dep)
+    enc_leaves = enc_ids - enc_deps  # encoder ids that nothing in enc_ids depends on further
+    # Prefer a layernorm/rmsnorm leaf as the canonical encoder output
+    enc_terminal = None
+    for leaf_id in enc_leaves:
+        comp = id_to_comp.get(leaf_id)
+        if comp and comp.get("kind") in _ENCODER_TERMINAL_KINDS:
+            enc_terminal = leaf_id
+            break
+    if enc_terminal is None and enc_leaves:
+        enc_terminal = next(iter(enc_leaves))  # fallback: any leaf
+
+    if enc_terminal is None:
+        return raw_json
+
+    # For each cross-attention component, ensure enc_terminal is in its depends_on
+    for ca in cross_attn_comps:
+        deps = ca.get("depends_on", [])
+        has_enc = any(d in enc_ids for d in deps)
+        if not has_enc:
+            ca["depends_on"] = deps + [enc_terminal]
+
+    return raw_json
 
 
 def _infer_depends_on(raw_json: dict) -> dict:
@@ -262,7 +337,8 @@ def extract_manifest(
         text=_truncate(parsed.text),
     )
 
-    response = client.chat.completions.create(
+    response = chat_create(
+        client,
         model=model,
         messages=[
             {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
@@ -349,7 +425,8 @@ def extract_manifest(
         valid_tcs.append(tc)
     raw_json["tensor_contracts"] = valid_tcs
 
-    # Post-process: infer missing depends_on connections
+    # Post-process: structural repairs then general dep inference
+    raw_json = _fix_cross_attention_deps(raw_json)
     raw_json = _infer_depends_on(raw_json)
 
     try:

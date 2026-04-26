@@ -9,9 +9,7 @@ from openai import AsyncOpenAI
 from schema.models import ComponentManifest, Component
 from .math_engine import compute_transform, MathTransformResult
 from .models import IntermediateTensor, TraversalStep, TraversalTrace
-
-DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2.7")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL, achat_create
 
 _KIND_INSIGHT = {
     "input_embedding": "Maps discrete token IDs to continuous vector space — the only place where symbolic language enters the numeric world.",
@@ -68,7 +66,8 @@ async def _llm_insight(
             "In one sentence (max 25 words), explain WHY this component is architecturally essential. "
             "Be specific to the math above. Reply with just the sentence, no quotes."
         )
-        resp = await client.chat.completions.create(
+        resp = await achat_create(
+            client,
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,

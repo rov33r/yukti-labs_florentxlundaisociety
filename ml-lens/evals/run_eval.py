@@ -8,10 +8,17 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# --paper flag must be processed before any common.py import (it reads EVAL_PAPER at module level)
+for i, arg in enumerate(sys.argv):
+    if arg == "--paper" and i + 1 < len(sys.argv):
+        os.environ["EVAL_PAPER"] = sys.argv[i + 1]
+        break
 
 import baseline
 import runner

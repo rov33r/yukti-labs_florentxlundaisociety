@@ -131,7 +131,7 @@ function buildLayout(components) {
   return pos
 }
 
-export default function ArchitectureFlow({ manifest, trace, activeStepIndex, onNodeClick }) {
+export default function ArchitectureFlow({ manifest, trace, activeStepIndex, onNodeClick, height = 500 }) {
   const positions = useMemo(() => buildLayout(manifest.components), [manifest.components])
   const activeStep = trace?.steps?.[activeStepIndex] ?? null
 
@@ -162,7 +162,7 @@ export default function ArchitectureFlow({ manifest, trace, activeStepIndex, onN
   const [, , onEdgesChange] = useEdgesState(edges)
 
   return (
-    <div style={{ width: '100%', height: 500, borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
+    <div style={{ width: '100%', height, borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

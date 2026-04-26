@@ -46,23 +46,42 @@ Rules:
 - A root component (e.g. raw token embedding with no upstream) may have `depends_on: []`.
 - Use only the `id` strings you defined for components in this manifest — never invent new ids.
 - Model actual tensor flow: if component B receives its input tensor from component A, then `B.depends_on = ["<a_id>"]`.
-- Multiple upstreams are allowed (e.g. residual connections, cross-attention receiving from both encoder and decoder output).
-- A disconnected graph (many nodes with empty depends_on) is WRONG. Re-read the paper and trace the data path.
+- Multiple upstreams are allowed and required in these cases:
+  - **Residual connections**: the merge node depends on both the pre-sublayer output AND the sublayer output.
+  - **Cross-attention (encoder-decoder attention)**: ALWAYS depends on TWO upstreams — the decoder's previous sublayer output (Queries) AND the encoder's final output (Keys + Values). If you omit the encoder→cross-attention edge the graph is structurally wrong.
+  - Any other data-join (e.g. concatenation, gating) similarly requires multiple upstreams.
+- A disconnected graph (many nodes with empty depends_on, or encoder and decoder appearing as two separate trees) is WRONG. Re-read the paper and trace the data path.
 
-Example dependency graph for a standard Transformer encoder block (ids are illustrative only):
+Example dependency graph for a full Transformer encoder-decoder block (ids are illustrative only):
 ```json
 [
-  {{"id": "input_embedding",      "depends_on": []}},
-  {{"id": "positional_encoding",  "depends_on": []}},
-  {{"id": "multi_head_attention", "depends_on": ["input_embedding", "positional_encoding"]}},
-  {{"id": "residual_attn",        "depends_on": ["input_embedding", "multi_head_attention"]}},
-  {{"id": "layer_norm_1",         "depends_on": ["residual_attn"]}},
-  {{"id": "feedforward",          "depends_on": ["layer_norm_1"]}},
-  {{"id": "residual_ffn",         "depends_on": ["layer_norm_1", "feedforward"]}},
-  {{"id": "layer_norm_2",         "depends_on": ["residual_ffn"]}},
-  {{"id": "output_head",          "depends_on": ["layer_norm_2"]}}
+  {{"id": "src_embedding",           "depends_on": []}},
+  {{"id": "src_pos_enc",             "depends_on": []}},
+  {{"id": "encoder_input",           "depends_on": ["src_embedding", "src_pos_enc"]}},
+  {{"id": "enc_self_attention",      "depends_on": ["encoder_input"]}},
+  {{"id": "enc_residual_1",          "depends_on": ["encoder_input", "enc_self_attention"]}},
+  {{"id": "enc_norm_1",              "depends_on": ["enc_residual_1"]}},
+  {{"id": "enc_feedforward",         "depends_on": ["enc_norm_1"]}},
+  {{"id": "enc_residual_2",          "depends_on": ["enc_norm_1", "enc_feedforward"]}},
+  {{"id": "enc_norm_2",              "depends_on": ["enc_residual_2"]}},
+  {{"id": "tgt_embedding",           "depends_on": []}},
+  {{"id": "tgt_pos_enc",             "depends_on": []}},
+  {{"id": "decoder_input",           "depends_on": ["tgt_embedding", "tgt_pos_enc"]}},
+  {{"id": "dec_masked_self_attn",    "depends_on": ["decoder_input"]}},
+  {{"id": "dec_residual_1",          "depends_on": ["decoder_input", "dec_masked_self_attn"]}},
+  {{"id": "dec_norm_1",              "depends_on": ["dec_residual_1"]}},
+  {{"id": "dec_cross_attention",     "depends_on": ["dec_norm_1", "enc_norm_2"]}},
+  {{"id": "dec_residual_2",          "depends_on": ["dec_norm_1", "dec_cross_attention"]}},
+  {{"id": "dec_norm_2",              "depends_on": ["dec_residual_2"]}},
+  {{"id": "dec_feedforward",         "depends_on": ["dec_norm_2"]}},
+  {{"id": "dec_residual_3",          "depends_on": ["dec_norm_2", "dec_feedforward"]}},
+  {{"id": "dec_norm_3",              "depends_on": ["dec_residual_3"]}},
+  {{"id": "output_linear",           "depends_on": ["dec_norm_3"]}},
+  {{"id": "output_softmax",          "depends_on": ["output_linear"]}}
 ]
 ```
+
+Note how `dec_cross_attention` depends on BOTH `dec_norm_1` (decoder queries) AND `enc_norm_2` (encoder Keys+Values). This is the most commonly missed edge — never omit it for encoder-decoder architectures.
 
 ## Extraction scope
 
