@@ -14,7 +14,7 @@ const EMPTY_STEPS = [
   {
     icon: Code2,
     label: 'Switch to Code view',
-    desc: 'Generates a PyTorch implementation grounded in the locked schema, not from the LLM\'s memory',
+    desc: "Generates a PyTorch implementation grounded in the locked schema, not from the LLM's memory",
   },
   {
     icon: Activity,
@@ -52,11 +52,50 @@ function EmptyState({ onGoHome }) {
 
 export default function Sandbox({ manifest, viewMode, onGoHome }) {
   const [selectedCompId, setSelectedCompId] = useState(null)
+  const [sandboxTab, setSandboxTab] = useState('graph') // 'graph' | 'manifest'
   const selectedComponent = manifest?.components?.find(c => c.id === selectedCompId) ?? null
+
+  const manifestJson = manifest
+    ? JSON.stringify(manifest, null, 2)
+    : '// No manifest loaded yet'
 
   return (
     <div className="sandbox-canvas">
-      {viewMode === 'model' ? (
+      {/* Manifest JSON tab strip — only shown when a manifest is loaded */}
+      {manifest?.components?.length > 0 && (
+        <div className="sandbox-tab-strip">
+          <button
+            className={`sandbox-tab ${sandboxTab === 'graph' ? 'sandbox-tab--active' : ''}`}
+            onClick={() => setSandboxTab('graph')}
+          >
+            Graph
+          </button>
+          <button
+            className={`sandbox-tab ${sandboxTab === 'manifest' ? 'sandbox-tab--active' : ''}`}
+            onClick={() => setSandboxTab('manifest')}
+          >
+            Manifest JSON
+            <span className="sandbox-tab-badge">{manifest.components.length}</span>
+          </button>
+        </div>
+      )}
+
+      {sandboxTab === 'manifest' && manifest ? (
+        <div className="manifest-viewer">
+          <div className="manifest-viewer-toolbar">
+            <span className="manifest-viewer-label">
+              {manifest.paper?.title ?? 'Manifest'} — {manifest.components?.length ?? 0} components
+            </span>
+            <button
+              className="manifest-copy-btn"
+              onClick={() => navigator.clipboard.writeText(manifestJson)}
+            >
+              Copy JSON
+            </button>
+          </div>
+          <pre className="manifest-json">{manifestJson}</pre>
+        </div>
+      ) : viewMode === 'model' ? (
         manifest?.components?.length
           ? <ArchitectureFlow manifest={manifest} height="100%" onNodeClick={setSelectedCompId} />
           : <EmptyState onGoHome={onGoHome} />

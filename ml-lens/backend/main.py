@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Optional, Literal
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 if os.getenv("DISABLE_SSL_VERIFY", "false").lower() == "true":
     ssl._create_default_https_context = ssl._create_unverified_context
@@ -192,10 +192,21 @@ arXiv: {paper.get('arxiv_id', '?')}
 ## Symbol Table
 {chr(10).join(sym_lines) if sym_lines else 'None'}
 
+## Sandbox actions
+If the user explicitly asks to add, remove, duplicate, or modify a component, include an "action" field.
+Valid component ids: {json.dumps([c.get('id') for c in components if isinstance(c, dict)])}
+Valid kind values: input_embedding, positional_encoding, linear_projection, attention, multi_head_attention, feedforward, layernorm, rmsnorm, residual, softmax, masking, output_head, other
+
+Supported action types:
+- add_component:       {{"type": "add_component",       "payload": {{"id": str, "name": str, "kind": str, "description": str, "depends_on": [str], "operations": [str]}}}}
+- remove_component:    {{"type": "remove_component",    "payload": {{"id": str}}}}
+- update_component:    {{"type": "update_component",    "payload": {{"id": str, ...fields to change}}}}
+- duplicate_component: {{"type": "duplicate_component", "payload": {{"sourceId": str, "newId": str, "name": str, "depends_on": [str]}}}}
+
 ## Response format
-Reply in markdown. Be concise and specific — cite tensor shapes and equations from the schema above where helpful.
-When writing mathematical expressions, use LaTeX notation: wrap inline expressions in $...$ and standalone equations in $$...$$. For example: the attention output is $\text{softmax}(QK^T / \sqrt{d_k})V$, or as a block: $$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
-If the user asks about something not covered by the schema, say so explicitly rather than guessing."""
+Return a JSON object: {{"content": "<markdown reply>", "action": null | <action object>}}
+Set action to null for informational questions. Only propose an action when explicitly asked.
+When writing math, use LaTeX: inline $...$ or block $$...$$."""
 
 
 @app.post("/api/chat")
@@ -221,10 +232,18 @@ def chat(payload: dict):
                 {"role": "system", "content": system_prompt},
                 *messages
             ],
+            response_format={"type": "json_object"},
             timeout=60,
         )
         raw = (completion.choices[0].message.content or "").strip()
-        return {"content": raw, "action": None}
+        try:
+            parsed = json.loads(raw)
+            return {
+                "content": parsed.get("content", raw),
+                "action": parsed.get("action") or None,
+            }
+        except json.JSONDecodeError:
+            return {"content": raw, "action": None}
     except Exception as e:
         logging.error(f"Chat error: {e}")
         return {"content": f"Error: {str(e)}", "action": None}

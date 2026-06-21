@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react'
+<<<<<<< Updated upstream
 import { Sparkles, Send } from 'lucide-react'
 import LoadingBar from './LoadingBar'
 import AsteriskSpinner from './AsteriskSpinner'
+=======
+import LoadingDots from './LoadingDots'
+>>>>>>> Stashed changes
 import MarkdownMessage from './MarkdownMessage'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
 
+<<<<<<< Updated upstream
 function getGreeting(paperTitle) {
   if (paperTitle) {
     return `I've read the full architecture spec for **${paperTitle}**. Ask me anything: what each component does, how data flows through it, why certain design choices were made, or how to read the tensor shapes. I only know what's in this paper's schema, so my answers are grounded, not guessed.`
@@ -31,6 +36,47 @@ export default function ChatPanel({ manifest = null }) {
   const paperTitle = manifest?.paper?.title ?? manifest?.manifest?.paper?.title ?? null
   const [messages, setMessages] = useState([
     { id: 1, role: 'assistant', content: getGreeting(paperTitle) },
+=======
+const ACTION_LABELS = {
+  add_component:       { verb: 'Add component',       color: '#16A34A', bg: '#EDF7ED' },
+  remove_component:    { verb: 'Remove component',    color: '#DC2626', bg: '#FEF2F2' },
+  update_component:    { verb: 'Update component',    color: '#2563EB', bg: '#EFF6FF' },
+  duplicate_component: { verb: 'Duplicate component', color: '#9333EA', bg: '#F5F3FF' },
+}
+
+function ActionChip({ action, onAccept, onDismiss }) {
+  const meta = ACTION_LABELS[action.type] ?? { verb: action.type, color: '#1E3A5F', bg: '#EEF3FA' }
+  const p = action.payload ?? {}
+  const detail = p.name ?? p.id ?? p.sourceId ?? ''
+
+  return (
+    <div className="action-chip" style={{ borderColor: meta.color, background: meta.bg }}>
+      <div className="action-chip-header" style={{ color: meta.color }}>
+        <span className="action-chip-verb">{meta.verb}</span>
+        {detail && <span className="action-chip-detail">— {detail}</span>}
+      </div>
+      <div className="action-chip-buttons">
+        <button className="action-chip-btn action-chip-btn--accept" onClick={onAccept}>
+          Apply
+        </button>
+        <button className="action-chip-btn action-chip-btn--dismiss" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function ChatPanel({ manifest, onAction }) {
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      role: 'assistant',
+      content: "Hi! I'm the ML Lens Architect. Ask me anything about this architecture, or tell me to add, remove, or modify components in the sandbox.",
+      action: null,
+      actionState: null, // null | 'pending' | 'applied' | 'dismissed'
+    },
+>>>>>>> Stashed changes
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,13 +89,34 @@ export default function ChatPanel({ manifest = null }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
+<<<<<<< Updated upstream
   const send = async (text) => {
     const msg = (text ?? input).trim()
     if (!msg || loading || !manifest) return
 
     const userMsg = { id: Date.now(), role: 'user', content: msg }
-    const nextMessages = [...messages, userMsg]
+=======
+  const applyAction = (msgId) => {
+    const msg = messages.find((m) => m.id === msgId)
+    if (msg?.action) onAction?.(msg.action)
+    setMessages((prev) =>
+      prev.map((m) => m.id === msgId ? { ...m, actionState: 'applied' } : m)
+    )
+  }
 
+  const dismissAction = (msgId) => {
+    setMessages((prev) =>
+      prev.map((m) => m.id === msgId ? { ...m, actionState: 'dismissed' } : m)
+    )
+  }
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || loading) return
+
+    const userMsg = { id: Date.now(), role: 'user', content: text, action: null, actionState: null }
+>>>>>>> Stashed changes
+    const nextMessages = [...messages, userMsg]
     setMessages(nextMessages)
     setInput('')
     setLoading(true)
@@ -63,7 +130,11 @@ export default function ChatPanel({ manifest = null }) {
           messages: nextMessages
             .filter((m) => m.role === 'user' || m.role === 'assistant')
             .map(({ role, content }) => ({ role, content })),
+<<<<<<< Updated upstream
           manifest,
+=======
+          manifest: manifest ?? null,
+>>>>>>> Stashed changes
         }),
       })
 
@@ -73,9 +144,17 @@ export default function ChatPanel({ manifest = null }) {
       }
 
       const data = await res.json()
+      const hasAction = data.action && data.action.type && data.action.payload
+
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, role: 'assistant', content: data.content },
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: data.content ?? '',
+          action: hasAction ? data.action : null,
+          actionState: hasAction ? 'pending' : null,
+        },
       ])
     } catch (err) {
       setError(err.message)
@@ -95,14 +174,21 @@ export default function ChatPanel({ manifest = null }) {
 
   return (
     <aside className="chat-panel">
-      <LoadingBar loading={loading} label="Thinking…" />
-
       <div className="chat-panel-header">
+<<<<<<< Updated upstream
         <div className="chat-panel-title-row">
           <Sparkles size={13} color="var(--c-teal)" />
           <span className="chat-panel-title">Ask Yukti</span>
         </div>
         <p className="chat-panel-subtitle">Schema-grounded answers only. No hallucination.</p>
+=======
+        <span className="chat-panel-title">Architect</span>
+        {manifest?.paper?.title && (
+          <span className="badge badge-completed" title={manifest.paper.title}>
+            {manifest.paper.arxiv_id ?? 'paper'}
+          </span>
+        )}
+>>>>>>> Stashed changes
       </div>
 
       <div className="chat-messages">
@@ -112,6 +198,19 @@ export default function ChatPanel({ manifest = null }) {
               ? <MarkdownMessage content={msg.content} />
               : <p>{msg.content}</p>
             }
+            {msg.action && msg.actionState === 'pending' && (
+              <ActionChip
+                action={msg.action}
+                onAccept={() => applyAction(msg.id)}
+                onDismiss={() => dismissAction(msg.id)}
+              />
+            )}
+            {msg.actionState === 'applied' && (
+              <div className="action-status action-status--applied">Applied to sandbox</div>
+            )}
+            {msg.actionState === 'dismissed' && (
+              <div className="action-status action-status--dismissed">Dismissed</div>
+            )}
           </div>
         ))}
         {loading && (
@@ -122,7 +221,7 @@ export default function ChatPanel({ manifest = null }) {
         )}
         {error && (
           <div className="chat-bubble assistant chat-bubble-error">
-            <p>Something went wrong: {error}</p>
+            <p>Error: {error}</p>
           </div>
         )}
         <div ref={bottomRef} />
@@ -147,7 +246,11 @@ export default function ChatPanel({ manifest = null }) {
         <textarea
           className="chat-textarea"
           rows={2}
+<<<<<<< Updated upstream
           placeholder={manifest ? "Ask about components, shapes, invariants…" : "Load a paper to enable chat"}
+=======
+          placeholder="Ask about the architecture, or say 'add a ReLU layer after the FFN'…"
+>>>>>>> Stashed changes
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}

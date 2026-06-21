@@ -4,7 +4,7 @@ import IngestionResult from './IngestionResult'
 import LoadingBar from './LoadingBar'
 import LoadingDots from './LoadingDots'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
 
 export default function Ingestion() {
   const [loading, setLoading] = useState(false)

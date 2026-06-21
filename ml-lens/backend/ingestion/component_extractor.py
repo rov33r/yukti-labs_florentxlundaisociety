@@ -1,19 +1,38 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from typing import Optional
 
+try:
+    from json_repair import repair_json as _repair_json
+    _HAS_JSON_REPAIR = True
+except ImportError:
+    _HAS_JSON_REPAIR = False
+
 from openai import OpenAI
 from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 from schema.models import ComponentManifest, PaperMetadata
 
 from .arxiv_resolver import ArxivPaper
 from .pdf_parser import ParsedPaper
-from .prompts import EXTRACTION_SYSTEM_PROMPT, USER_MESSAGE_TEMPLATE
-from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL, chat_create
+from .prompts import (
+    EXTRACTION_SYSTEM_PROMPT,
+    FALLBACK_SYSTEM_PROMPT,
+    USER_MESSAGE_TEMPLATE,
+    make_skeleton_prompt,
+    SKELETON_USER_TEMPLATE,
+    GRAPH_VERIFY_SYSTEM_PROMPT,
+    GRAPH_VERIFY_USER_TEMPLATE,
+    ENRICH_SYSTEM_PROMPT,
+    ENRICH_USER_TEMPLATE,
+)
+from llm import OPENROUTER_BASE_URL, PRIMARY_MODEL as DEFAULT_MODEL
 MAX_TEXT_CHARS = 80_000
 
 # Kind-based topological order used to infer missing depends_on.
@@ -297,6 +316,8 @@ def _fix_latex_escapes(s: str) -> str:
 
 def _parse_response(text: str) -> dict:
     cleaned = text.strip()
+    # Strip <thinking>...</thinking> block that some models emit before the JSON
+    cleaned = re.sub(r"<thinking>.*?</thinking>", "", cleaned, flags=re.DOTALL).strip()
     if cleaned.startswith("```"):
         lines = cleaned.split("\n")
         cleaned = "\n".join(lines[1:])
@@ -310,10 +331,120 @@ def _parse_response(text: str) -> dict:
     # retry after fixing bare LaTeX backslashes
     try:
         return json.loads(_fix_latex_escapes(cleaned))
+    except json.JSONDecodeError:
+        pass
+    # last resort: best-effort JSON repair (handles truncated output)
+    if _HAS_JSON_REPAIR:
+        try:
+            repaired = _repair_json(cleaned, return_objects=True)
+            if isinstance(repaired, dict):
+                logger.warning("JSON was malformed; recovered with json-repair")
+                return repaired
+        except Exception:
+            pass
+    # give up
+    try:
+        exc_detail = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise ComponentExtractorError(
             f"LLM did not return valid JSON: {exc}\nraw: {text[:500]}"
         ) from exc
+    raise ComponentExtractorError(f"LLM did not return valid JSON\nraw: {text[:500]}")
+
+
+import base64
+
+_VISION_ERROR_TERMS = ["image input", "multimodal", "image_url", "404", "400", "support", "vision", "timeout", "timed out"]
+
+
+def _encode_image(image_bytes: bytes) -> str:
+    return base64.b64encode(image_bytes).decode("utf-8")
+
+
+def _llm_call(
+    client: OpenAI,
+    model: str,
+    system: str,
+    user_text: str,
+    images: list[bytes] | None = None,
+    label: str = "LLM call",
+    max_tokens: int = 65536,
+    timeout: int = 120,
+) -> str:
+    """Run one LLM call, falling back to text-only if the model rejects images."""
+    content: list | str
+    if images:
+        content = [{"type": "text", "text": user_text}]
+        for img in images:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{_encode_image(img)}"},
+            })
+    else:
+        content = user_text
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": content},
+            ],
+            max_tokens=max_tokens,
+            temperature=0.1,
+            timeout=timeout,
+        )
+    except Exception as e:
+        if images and any(t in str(e).lower() for t in _VISION_ERROR_TERMS):
+            logger.warning(f"{label}: vision failed ({e}), retrying text-only")
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_text},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.1,
+                timeout=timeout,
+            )
+        else:
+            raise
+
+    choice = resp.choices[0]
+    finish_reason = getattr(choice, "finish_reason", "unknown")
+    text = (choice.message.content or "").strip()
+    if not text:
+        raise ComponentExtractorError(
+            f"{label}: LLM response was empty (finish_reason={finish_reason}). "
+            "The model may have hit a content filter or context length limit."
+        )
+    return text
+
+
+def _detect_topology(text: str) -> str:
+    """Heuristically classify architecture topology from abstract/text."""
+    t = text.lower()
+
+    enc_signals = ["encoder", "bert", "roberta", "vision transformer", "vit", "masked language"]
+    dec_signals = ["decoder-only", "autoregressive", "causal lm", "gpt", "llama", "mistral", "falcon", "language model"]
+    enc_dec_signals = ["encoder-decoder", "encoder and decoder", "seq2seq", "sequence-to-sequence", "t5", "bart", "translation", "summarization"]
+
+    enc_dec = sum(1 for s in enc_dec_signals if s in t)
+    dec_only = sum(1 for s in dec_signals if s in t)
+    enc_only = sum(1 for s in enc_signals if s in t)
+
+    # enc_dec check first — it also mentions "encoder" and "decoder" individually
+    if enc_dec >= 1 or (enc_only >= 1 and dec_only >= 1):
+        return "encoder_decoder"
+    if dec_only >= 1:
+        return "decoder_only"
+    if enc_only >= 1:
+        return "encoder_only"
+    return "unknown"
+
+
+def _is_schema_echo(raw_json: dict) -> bool:
+    return "$defs" in raw_json or "properties" in raw_json or "type" in raw_json
 
 
 def extract_manifest(
@@ -328,14 +459,23 @@ def extract_manifest(
             raise ComponentExtractorError("No valid API key found. Set OPENROUTER_API_KEY in .env")
         client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
 
-    user_message = USER_MESSAGE_TEMPLATE.format(
+    high_context = _truncate(parsed.high_context_text, limit=30000)
+    equations_text = "\n".join(f"- {eq}" for eq in parsed.equations) or "(none extracted)"
+    captions_text = "\n".join(f"- {c}" for c in parsed.figure_captions) or "(none)"
+    images = parsed.figure_images[:5]
+
+    # ── Pass 1: skeleton ──────────────────────────────────────────────────────
+    topology = _detect_topology(paper.abstract + " " + high_context[:2000])
+    logger.info(f"Detected topology: {topology}")
+    skeleton_system = make_skeleton_prompt(topology)
+
+    skeleton_user = SKELETON_USER_TEMPLATE.format(
         arxiv_id=paper.arxiv_id,
         title=paper.title,
-        authors=", ".join(paper.authors),
-        equations="\n".join(f"- {eq}" for eq in parsed.equations) or "(none extracted)",
-        figure_captions="\n".join(f"- {c}" for c in parsed.figure_captions) or "(none)",
-        text=_truncate(parsed.text),
+        high_context_text=_truncate(high_context, limit=8000),  # skeleton only needs enough to identify components
+        figure_captions=captions_text,
     )
+<<<<<<< Updated upstream
 
     response = chat_create(
         client,
@@ -347,20 +487,105 @@ def extract_manifest(
         max_tokens=8192,
         temperature=0.1,
         timeout=180,
+=======
+    skeleton_text = _llm_call(
+        client, model,
+        system=skeleton_system,
+        user_text=skeleton_user,
+        images=images,
+        label="Pass 1 (skeleton)",
+        max_tokens=4096,
+        timeout=60,
+>>>>>>> Stashed changes
     )
+    skeleton_json = _parse_response(skeleton_text)
 
-    raw_text = (response.choices[0].message.content or "").strip()
-    if not raw_text:
-        raise ComponentExtractorError("LLM response was empty")
-
-    raw_json = _parse_response(raw_text)
-
-    # Guard: detect if the LLM echoed back the JSON Schema instead of real data
-    if "$defs" in raw_json or "properties" in raw_json or "type" in raw_json:
+    if _is_schema_echo(skeleton_json):
         raise ComponentExtractorError(
-            "LLM returned the JSON Schema definition instead of a populated manifest. "
-            "This usually means the model misunderstood the prompt. Try re-running ingestion."
+            "Pass 1: model echoed the JSON Schema instead of extracting components. "
+            "Try a different model via OPENROUTER_MODEL."
         )
+
+    skeleton_components = skeleton_json.get("components", [])
+    if not skeleton_components:
+        raise ComponentExtractorError("Pass 1: no components found in skeleton response")
+
+    logger.info(f"Pass 1 complete: {len(skeleton_components)} components found")
+
+    # ── Pass 1.5: graph verification ──────────────────────────────────────────
+    logger.info("Pass 1.5: verifying and correcting graph edges")
+    graph_user = GRAPH_VERIFY_USER_TEMPLATE.format(
+        title=paper.title,
+        skeleton_json=json.dumps({"components": skeleton_components}, indent=2),
+        figure_captions=captions_text,
+        equations=equations_text,
+    )
+    graph_text = _llm_call(
+        client, model,
+        system=GRAPH_VERIFY_SYSTEM_PROMPT,
+        user_text=graph_user,
+        label="Pass 1.5 (graph verify)",
+        max_tokens=2048,
+        timeout=45,
+    )
+    graph_json = _parse_response(graph_text)
+
+    # Merge corrected depends_on back into skeleton_components
+    corrected_edges: dict[str, list[str]] = {
+        c["id"]: c.get("depends_on", [])
+        for c in graph_json.get("components", [])
+        if isinstance(c, dict) and "id" in c
+    }
+    if corrected_edges:
+        for comp in skeleton_components:
+            if isinstance(comp, dict) and comp.get("id") in corrected_edges:
+                comp["depends_on"] = corrected_edges[comp["id"]]
+        logger.info("Pass 1.5 complete: graph edges updated")
+    else:
+        logger.warning("Pass 1.5: no corrected edges returned, keeping skeleton as-is")
+
+    # ── Pass 2: enrich ────────────────────────────────────────────────────────
+    logger.info("Pass 2: enriching skeleton with details")
+    enrich_user = ENRICH_USER_TEMPLATE.format(
+        arxiv_id=paper.arxiv_id,
+        title=paper.title,
+        skeleton_json=json.dumps({"components": skeleton_components}, indent=2),
+        high_context_text=high_context,
+        equations=equations_text,
+        figure_captions=captions_text,
+    )
+    enrich_text = _llm_call(
+        client, model,
+        system=ENRICH_SYSTEM_PROMPT,
+        user_text=enrich_user,
+        label="Pass 2 (enrich)",
+        max_tokens=16384,
+        timeout=120,
+    )
+    raw_json = _parse_response(enrich_text)
+
+    if _is_schema_echo(raw_json):
+        logger.warning("Pass 2: schema echo detected, retrying with fallback prompt")
+        fallback_user = USER_MESSAGE_TEMPLATE.format(
+            arxiv_id=paper.arxiv_id,
+            title=paper.title,
+            authors=", ".join(paper.authors),
+            high_context_text=high_context,
+            equations=equations_text,
+            figure_captions=captions_text,
+        )
+        fallback_text = _llm_call(
+            client, model,
+            system=FALLBACK_SYSTEM_PROMPT,
+            user_text=fallback_user,
+            label="Pass 2 fallback",
+        )
+        raw_json = _parse_response(fallback_text)
+        if _is_schema_echo(raw_json):
+            raise ComponentExtractorError(
+                "Model returned the JSON Schema even after fallback retry. "
+                "Try switching models via OPENROUTER_MODEL."
+            )
 
     raw_json["paper"] = PaperMetadata(
         arxiv_id=paper.arxiv_id,

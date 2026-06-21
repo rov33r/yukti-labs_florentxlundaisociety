@@ -326,6 +326,69 @@ h1, h2, h3, h4, h5, h6 {
   color: #DC2626 !important;
 }
 
+/* ── Action chip (tool-call confirmation) ──────────────── */
+.action-chip {
+  margin-top: 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Poppins', Arial, sans-serif;
+}
+
+.action-chip-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.action-chip-detail {
+  font-weight: 400;
+  opacity: 0.8;
+  font-size: 11px;
+}
+
+.action-chip-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.action-chip-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+
+.action-chip-btn:hover { opacity: 0.85; }
+
+.action-chip-btn--accept {
+  background: #1E3A5F;
+  color: white;
+}
+
+.action-chip-btn--dismiss {
+  background: #E8EEF5;
+  color: #5A7A9A;
+}
+
+.action-status {
+  margin-top: 6px;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.action-status--applied { color: #16A34A; }
+.action-status--dismissed { color: #9CA3AF; }
+
 .chat-typing {
   color: #7A93B0;
   font-style: italic;
@@ -442,6 +505,123 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Sandbox tab strip ─────────────────────────────────── */
+.sandbox-tab-strip {
+  display: flex;
+  gap: 2px;
+  padding: 6px 10px 0;
+  background: #F5F7FA;
+  border-bottom: 1px solid #D6E4F0;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.sandbox-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5A7A9A;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sandbox-tab:hover {
+  color: #1E3A5F;
+  background: #EEF3FA;
+}
+
+.sandbox-tab--active {
+  color: #1E3A5F;
+  background: white;
+  border-color: #D6E4F0;
+  font-weight: 600;
+}
+
+.sandbox-tab-badge {
+  background: #1E3A5F;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+
+/* ── Manifest JSON viewer ──────────────────────────────── */
+.manifest-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0F1C2E;
+}
+
+.manifest-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #162436;
+  border-bottom: 1px solid #263D55;
+  flex-shrink: 0;
+}
+
+.manifest-viewer-label {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px;
+  color: #7A9BB5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manifest-copy-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7ABFFF;
+  background: transparent;
+  border: 1px solid #3A5A7A;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.manifest-copy-btn:hover {
+  background: #1E3A5F;
+  color: white;
+}
+
+.manifest-json {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px;
+  margin: 0;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #A8D8FF;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* Basic JSON syntax colouring via text colour — keys vs strings vs numbers */
+.manifest-json {
+  color: #CBD5E1; /* default / punctuation */
 }
 
 .sandbox-empty {
@@ -4152,4 +4332,31 @@ input:disabled {
   font-size: 13px;
   font-style: italic;
   margin: 0;
+}
+
+/* Landing force refresh */
+.landing-force-refresh {
+  margin-top: 15px;
+  display: flex;
+  justify-content: center;
+}
+
+.landing-force-refresh .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.landing-force-refresh .checkbox-label:hover {
+  color: white;
+}
+
+.landing-force-refresh input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }

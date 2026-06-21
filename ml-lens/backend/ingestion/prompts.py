@@ -15,13 +15,200 @@ if "paper" in _SCHEMA_FOR_LLM.get("required", []):
     _SCHEMA_FOR_LLM["required"] = [r for r in _SCHEMA_FOR_LLM["required"] if r != "paper"]
 _SCHEMA_JSON = json.dumps(_SCHEMA_FOR_LLM, indent=2)
 
-EXTRACTION_SYSTEM_PROMPT = f"""You are an expert ML research engineer extracting a locked architectural contract from a paper. This contract grounds downstream code-generation agents, so precision matters more than breadth.
+# ── Topology templates (injected into the skeleton prompt) ───────────────────
+_TOPOLOGY_ENCODER_DECODER = """
+## Expected topology: ENCODER-DECODER (e.g. original Transformer, T5, BART)
 
-## Your job
+Encoder column (bottom → top):
+  src_embedding → pos_encoding_enc
+  pos_encoding_enc → encoder_self_attn (×N layers, each depending on previous layer's output)
+  encoder_self_attn → enc_add_norm_1 → encoder_ffn → enc_add_norm_2
+  (repeat for N layers, renaming with layer index if needed)
 
-Given the text of an ML paper (and its extracted LaTeX equations), produce a JSON object that strictly conforms to the JSON Schema below. Do not invent field names — use only the exact field names defined in the schema.
+Decoder column (bottom → top):
+  tgt_embedding → pos_encoding_dec
+  pos_encoding_dec → decoder_masked_self_attn (×N layers)
+  decoder_masked_self_attn → dec_add_norm_1
+  dec_add_norm_1 + enc_add_norm_2 (last encoder layer) → decoder_cross_attn
+  decoder_cross_attn → dec_add_norm_2 → decoder_ffn → dec_add_norm_3
 
-## JSON Schema (strict — your output MUST validate against this)
+Output:
+  dec_add_norm_3 (last decoder layer) → linear_proj → output_softmax
+"""
+
+_TOPOLOGY_DECODER_ONLY = """
+## Expected topology: DECODER-ONLY (e.g. GPT, LLaMA, Mistral)
+
+  token_embedding → pos_encoding (or RoPE applied inside attention)
+  pos_encoding → masked_self_attn_layer_1
+  masked_self_attn_layer_1 → add_norm_1_layer_1 → ffn_layer_1 → add_norm_2_layer_1
+  add_norm_2_layer_1 → masked_self_attn_layer_2 → ... (repeat ×N)
+  last_add_norm → lm_head → output_softmax
+
+  Note: RoPE/ALiBi are applied INSIDE attention, not as a separate upstream component.
+  Residual skip: each add_norm depends on BOTH the sublayer output AND the previous add_norm (skip path).
+"""
+
+_TOPOLOGY_ENCODER_ONLY = """
+## Expected topology: ENCODER-ONLY (e.g. BERT, RoBERTa, ViT)
+
+  token_embedding → pos_encoding
+  pos_encoding → self_attn_layer_1
+  self_attn_layer_1 → add_norm_1_layer_1 → ffn_layer_1 → add_norm_2_layer_1
+  add_norm_2_layer_1 → self_attn_layer_2 → ... (repeat ×N)
+  last_add_norm → pooler_or_cls_head
+
+  Residual skip: each add_norm depends on BOTH the sublayer output AND the input to that sublayer.
+"""
+
+_TOPOLOGY_UNKNOWN = """
+## Expected topology: UNKNOWN
+
+Carefully trace the data-flow from the paper's figures and text.
+Identify whether this is encoder-only, decoder-only, or encoder-decoder, then apply the appropriate pattern.
+"""
+
+TOPOLOGY_TEMPLATES: dict[str, str] = {
+    "encoder_decoder": _TOPOLOGY_ENCODER_DECODER,
+    "decoder_only":    _TOPOLOGY_DECODER_ONLY,
+    "encoder_only":    _TOPOLOGY_ENCODER_ONLY,
+    "unknown":         _TOPOLOGY_UNKNOWN,
+}
+
+# ── Pass 1: skeleton ────────────────────────────────────────────────────────
+_SKELETON_SYSTEM_BASE = """You are an expert ML research engineer.
+
+Your ONLY task right now is to identify every distinct architectural component in this paper and map the data-flow graph between them.
+
+Output a single JSON object with ONE key: "components" — an array of objects, each with:
+- "id"         : unique snake_case string  (e.g. "encoder_self_attention")
+- "name"       : human-readable name
+- "kind"       : one of: input_embedding, positional_encoding, linear_projection, attention, multi_head_attention, feedforward, layernorm, rmsnorm, residual, softmax, masking, output_head, other
+- "depends_on" : array of component ids this receives data FROM (empty only for root inputs)
+- "column"     : "encoder", "decoder", or "shared"  (use "shared" if the paper has no encoder-decoder split)
+
+Rules:
+- Every non-root component MUST have at least one depends_on entry.
+- Cross-attention ALWAYS depends on two upstreams: the decoder's previous sublayer AND the encoder's final output.
+- Residual/LayerNorm wrappers are separate components from the sublayer they wrap.
+- Do NOT include prose, tensor shapes, equations, or hyperparameters — those come in a second pass.
+
+{topology_hint}
+
+Output ONLY a ```json code block. No prose."""
+
+
+def make_skeleton_prompt(topology: str = "unknown") -> str:
+    hint = TOPOLOGY_TEMPLATES.get(topology, _TOPOLOGY_UNKNOWN)
+    return _SKELETON_SYSTEM_BASE.format(topology_hint=hint)
+
+
+SKELETON_USER_TEMPLATE = """Paper: {title} ({arxiv_id})
+
+## Architecture text
+{high_context_text}
+
+## Figure captions
+{figure_captions}
+
+List every component and the data-flow edges between them now."""
+
+# ── Pass 1.5: graph verification ────────────────────────────────────────────
+GRAPH_VERIFY_SYSTEM_PROMPT = """You are an expert ML research engineer specialising in data-flow graphs.
+
+You are given a list of components extracted from an ML paper and their current depends_on edges. Your job is to verify and correct ONLY the graph edges — do not change ids, names, or kinds.
+
+Rules:
+- Every non-root component must have at least one depends_on entry.
+- Root components (e.g. input tokens, raw embeddings) have an empty depends_on.
+- Cross-attention must depend on TWO upstreams: the decoder sublayer before it (Queries) AND the encoder's final output (Keys+Values).
+- Residual connections: the component receiving the residual add depends on BOTH the sublayer output AND its own input (the skip path).
+- Encoder and decoder stacks repeat — make sure repeated layer components depend on the previous layer's output, not the first layer.
+- If the paper has no encoder-decoder split, treat everything as a single column.
+
+Output a single JSON object:
+{
+  "components": [
+    {"id": "<same id>", "depends_on": ["<corrected list>"]},
+    ...
+  ]
+}
+
+Include ALL component ids in the output, even those with correct edges. Output ONLY a ```json code block."""
+
+GRAPH_VERIFY_USER_TEMPLATE = """Paper: {title}
+
+## Current component graph
+```json
+{skeleton_json}
+```
+
+## Figure captions (use these to verify connections)
+{figure_captions}
+
+## Key equations (use these to verify Q/K/V routing and residual paths)
+{equations}
+
+Review every edge. Output the corrected depends_on for all components."""
+
+# ── Pass 2: enrich ───────────────────────────────────────────────────────────
+ENRICH_SYSTEM_PROMPT = """You are an expert ML research engineer.
+
+You are given a skeleton component graph for an ML paper. Your task is to enrich each component with detail and produce the complete manifest.
+
+Output a single JSON object with these keys:
+- "components"       : the same components as the skeleton, each extended with:
+    - "description"      : 1-2 sentence explanation
+    - "operations"       : ordered list of ops (e.g. ["linear_project_qkv", "scaled_dot_product", "concat_heads"])
+    - "hyperparameters"  : {param_name: meaning} dict
+    - "equations"        : list of LaTeX strings from the paper (double-escape backslashes: \\\\frac)
+- "tensor_contracts" : array of {component_id, input_shapes, output_shapes, dtype}
+    - shapes are dicts: {"Q": ["B","T","d_model"]}
+- "invariants"       : array of {id, name, description, kind, affected_components}
+    - kind: weight_tying | causal_mask | residual_connection | init_scheme | normalization_placement | scaling | other
+- "symbol_table"     : {symbol: meaning}  e.g. {"d_model": "hidden dimension (512)"}
+- "notes"            : a single string with any important architectural notes
+
+IMPORTANT: Keep every component from the skeleton. Do not add or remove components or change their ids or depends_on.
+
+Output ONLY a ```json code block. No prose."""
+
+ENRICH_USER_TEMPLATE = """Paper: {title} ({arxiv_id})
+
+## Skeleton (DO NOT change ids or depends_on)
+```json
+{skeleton_json}
+```
+
+## Architecture text
+{high_context_text}
+
+## Equations
+{equations}
+
+## Figure captions
+{figure_captions}
+
+Enrich the skeleton and produce the full manifest now."""
+
+# ── Legacy single-pass prompt (kept as fallback) ─────────────────────────────
+EXTRACTION_SYSTEM_PROMPT = f"""You are an expert ML research engineer. Your task is to read an ML paper (text, equations, and provided figure images) and produce a structured JSON manifest of its architecture.
+
+## Structural Reasoning Process (THINK before structuring)
+
+Before you write the JSON, you MUST follow these reasoning steps in your `<thinking>` block:
+
+1. **Inventory the components**: List every distinct block seen in the figures or described in the text (e.g., embeddings, attention types, normalization, feed-forward).
+2. **Column Layout Detection**: Identify if the architecture uses parallel columns (e.g., a distinct Encoder column and a Decoder column). 
+3. **Vertical Stacking & Flow**: Determine the direction of data flow (usually bottom-up in diagrams). Assign each block a logical level or rank.
+4. **Identify Connections**: Trace the main path and all "skip" or "residual" connections. Note any cross-column connections (e.g., Encoder K,V to Decoder Cross-Attention).
+5. **Categorize**: Group components into functional categories (Attention, Normalization, Feed-Forward, etc.).
+
+## Output format
+
+Produce a JSON object that strictly conforms to the JSON Schema below.
+
+## JSON Schema (reference only — do NOT output this schema; output a POPULATED instance of it)
 
 ```json
 {_SCHEMA_JSON}
@@ -29,14 +216,12 @@ Given the text of an ML paper (and its extracted LaTeX equations), produce a JSO
 
 ## Critical field rules
 
-- `components[*].kind` — MUST be exactly one of the enum values listed in the schema. No other values.
-- `invariants[*].kind` — MUST be exactly one of the enum values listed in the schema. No other values.
-- `quote` fields — MUST be an object with a `"text"` string field (and optional `"section"` string), NOT a plain string.
-- `tensor_contracts[*].input_shapes` and `output_shapes` — MUST be objects mapping tensor name strings to arrays of symbolic dimension strings, e.g. {{"Q": ["B", "T_q", "d_model"]}}. Never a list.
-- `notes` — MUST be a single string or null, NOT a list.
-- Do NOT include the `paper` field — it will be injected automatically.
+- `components[*].kind` — MUST be exactly one of the enum values listed in the schema.
+- `depends_on` — encodes the **data-flow graph**. Every non-root component MUST have at least one entry.
+- **Cross-attention**: ALWAYS depends on TWO upstreams — the decoder's previous sublayer output (Queries) AND the encoder's final output (Keys + Values).
 - All LaTeX in JSON strings must use double backslashes (e.g. `\\\\frac`, `\\\\sqrt`).
 
+<<<<<<< Updated upstream
 ## depends_on — DATA FLOW GRAPH (CRITICAL — do not leave empty)
 
 `depends_on` encodes the **data-flow graph**: which components feed their output tensor directly into this component's input.
@@ -83,20 +268,15 @@ Example dependency graph for a full Transformer encoder-decoder block (ids are i
 
 Note how `dec_cross_attention` depends on BOTH `dec_norm_1` (decoder queries) AND `enc_norm_2` (encoder Keys+Values). This is the most commonly missed edge — never omit it for encoder-decoder architectures.
 
+=======
+>>>>>>> Stashed changes
 ## Extraction scope
 
-Focus on transformer attention mechanisms: Q/K/V projections, attention score computation, softmax, masking, head splitting/merging, output projection, residual + norm placement, FFN. If the paper is not attention-centric, still produce the manifest but flag it in `notes`.
+Focus on transformer attention mechanisms: Q/K/V projections, attention score computation, softmax, masking, head splitting/merging, output projection, residual + norm placement, FFN. 
 
-## Correctness rules
+## Final Output Structure
 
-- Never fabricate: if a shape, symbol, or invariant is not in the paper, omit it.
-- Prefer symbolic over numeric: shapes use symbolic dim names from the paper.
-- ids must be snake_case, unique, derived from the paper's own terminology.
-- No prose outside JSON: your output must be a single JSON object. No markdown fences, no preamble.
-
-## Output
-
-Return ONLY a valid JSON object matching the schema above. No markdown, no explanation.
+First write a `<thinking>` block following the Structural Reasoning Process above. Then output the JSON inside a ```json code block.
 """
 
 USER_MESSAGE_TEMPLATE = """Paper metadata:
@@ -104,15 +284,32 @@ USER_MESSAGE_TEMPLATE = """Paper metadata:
 - title: {title}
 - authors: {authors}
 
-Extracted LaTeX equations (deduped, up to 200):
-{equations}
+## Primary Architectural Context (Extracted from Methodology/Model sections)
+{high_context_text}
 
-Figure captions extracted from PDF:
+## Figure Data
+Figure captions:
 {figure_captions}
 
-Paper text (PyMuPDF extraction):
----
-{text}
----
+(Note: Figures themselves are provided as images in this message. Use them to verify columns, layers, and connections.)
+
+## Extracted Equations
+{equations}
 
 Produce the ComponentManifest JSON now."""
+
+# Used as a retry system prompt when the model echoes the schema instead of filling it in.
+FALLBACK_SYSTEM_PROMPT = f"""You are an expert ML research engineer.
+
+Read the paper text below and output a single JSON object that is a FILLED-IN manifest of the paper's architecture. Do NOT output the schema definition itself — output real data extracted from the paper.
+
+The JSON must have these top-level keys (all arrays of objects):
+- "components"   — each with: id, name, kind, description, operations[], depends_on[]
+- "tensor_contracts" — each with: component_id, input_shapes{{}}, output_shapes{{}}
+- "invariants"   — each with: id, name, description, kind, affected_components[]
+- "symbol_table" — object mapping symbol → meaning
+- "notes"        — string
+
+Valid "kind" values for components: input_embedding, positional_encoding, linear_projection, attention, multi_head_attention, feedforward, layernorm, rmsnorm, residual, softmax, masking, output_head, other
+
+Output ONLY a ```json code block. No prose, no schema, no examples."""

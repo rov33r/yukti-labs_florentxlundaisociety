@@ -3,7 +3,7 @@ import { Search, Cpu, Zap, Check } from 'lucide-react'
 import PipelineProgress from './PipelineProgress'
 import AsteriskSpinner from './AsteriskSpinner'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
 
 const ARXIV_PATTERN = /(?:arxiv\.org\/(?:abs|pdf)\/|(?:doi\.org\/[\d.]+\/(?:arxiv\.)?)|^)([\d]{4}\.[\d]{4,5}(?:v\d+)?|[a-z\-]+\/\d{7})(?:$|[^\d])/i
 
@@ -211,6 +211,7 @@ export default function LandingPage({ onEnter }) {
   const [pipelineDone, setPipelineDone] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [forceRefresh, setForceRefresh] = useState(false)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -242,13 +243,16 @@ export default function LandingPage({ onEnter }) {
     setPipelineDone(false)
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 240_000)
+    const timeoutId = setTimeout(() => controller.abort(), 480_000) // 8 min max (3-pass LLM pipeline)
 
     try {
       const res = await fetch(`${API_BASE}/api/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url_or_id: parseArxivId(raw) }),
+        body: JSON.stringify({ 
+          url_or_id: parseArxivId(raw),
+          force_refresh: forceRefresh 
+        }),
         signal: controller.signal,
       })
 
@@ -273,7 +277,7 @@ export default function LandingPage({ onEnter }) {
     } catch (err) {
       clearTimeout(timeoutId)
       const msg = err.name === 'AbortError'
-        ? 'Request timed out (over 4 min). The LLM extractor may be overloaded. Please try again.'
+        ? 'Request timed out (>8 min). The LLM extractor may be overloaded — try again.'
         : err.message
       setError(msg)
       setPhase('error')
@@ -286,6 +290,7 @@ export default function LandingPage({ onEnter }) {
     setError(null)
     setInput('')
     setPipelineDone(false)
+    setForceRefresh(false)
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 

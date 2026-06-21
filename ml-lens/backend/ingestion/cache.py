@@ -48,11 +48,18 @@ class IngestionCache:
             return None
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
+            images = []
+            img_dir = self.root / "images"
+            if img_dir.exists():
+                for img_file in sorted(img_dir.glob("fig_*.png")):
+                    images.append(img_file.read_bytes())
+            
             return ParsedPaper(
                 text=d["text"],
                 equations=d["equations"],
                 figure_captions=d["figure_captions"],
-                figure_images=[],  # images not cached (large)
+                high_context_text=d.get("high_context_text", d["text"][:15000]),
+                figure_images=images,
             )
         except Exception:
             return None
@@ -62,8 +69,15 @@ class IngestionCache:
             "text": parsed.text,
             "equations": parsed.equations,
             "figure_captions": parsed.figure_captions,
+            "high_context_text": parsed.high_context_text,
         }
         (self.root / "parsed.json").write_text(json.dumps(d), encoding="utf-8")
+        
+        # Save images
+        img_dir = self.root / "images"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        for i, img_bytes in enumerate(parsed.figure_images):
+            (img_dir / f"fig_{i:02d}.png").write_bytes(img_bytes)
 
     def get_manifest(self, phash: str) -> Optional[ComponentManifest]:
         p = self.root / f"manifest_{phash}.json"
