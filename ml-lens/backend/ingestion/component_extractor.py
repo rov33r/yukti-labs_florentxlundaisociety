@@ -475,19 +475,6 @@ def extract_manifest(
         high_context_text=_truncate(high_context, limit=8000),  # skeleton only needs enough to identify components
         figure_captions=captions_text,
     )
-<<<<<<< Updated upstream
-
-    response = chat_create(
-        client,
-        model=model,
-        messages=[
-            {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-        max_tokens=8192,
-        temperature=0.1,
-        timeout=180,
-=======
     skeleton_text = _llm_call(
         client, model,
         system=skeleton_system,
@@ -496,7 +483,6 @@ def extract_manifest(
         label="Pass 1 (skeleton)",
         max_tokens=4096,
         timeout=60,
->>>>>>> Stashed changes
     )
     skeleton_json = _parse_response(skeleton_text)
 

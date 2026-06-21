@@ -221,7 +221,6 @@ Produce a JSON object that strictly conforms to the JSON Schema below.
 - **Cross-attention**: ALWAYS depends on TWO upstreams — the decoder's previous sublayer output (Queries) AND the encoder's final output (Keys + Values).
 - All LaTeX in JSON strings must use double backslashes (e.g. `\\\\frac`, `\\\\sqrt`).
 
-<<<<<<< Updated upstream
 ## depends_on — DATA FLOW GRAPH (CRITICAL — do not leave empty)
 
 `depends_on` encodes the **data-flow graph**: which components feed their output tensor directly into this component's input.
@@ -268,8 +267,7 @@ Example dependency graph for a full Transformer encoder-decoder block (ids are i
 
 Note how `dec_cross_attention` depends on BOTH `dec_norm_1` (decoder queries) AND `enc_norm_2` (encoder Keys+Values). This is the most commonly missed edge — never omit it for encoder-decoder architectures.
 
-=======
->>>>>>> Stashed changes
+
 ## Extraction scope
 
 Focus on transformer attention mechanisms: Q/K/V projections, attention score computation, softmax, masking, head splitting/merging, output projection, residual + norm placement, FFN. 

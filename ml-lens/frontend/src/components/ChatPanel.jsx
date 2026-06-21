@@ -1,16 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
-<<<<<<< Updated upstream
 import { Sparkles, Send } from 'lucide-react'
-import LoadingBar from './LoadingBar'
 import AsteriskSpinner from './AsteriskSpinner'
-=======
-import LoadingDots from './LoadingDots'
->>>>>>> Stashed changes
 import MarkdownMessage from './MarkdownMessage'
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
 
-<<<<<<< Updated upstream
 function getGreeting(paperTitle) {
   if (paperTitle) {
     return `I've read the full architecture spec for **${paperTitle}**. Ask me anything: what each component does, how data flows through it, why certain design choices were made, or how to read the tensor shapes. I only know what's in this paper's schema, so my answers are grounded, not guessed.`
@@ -32,11 +26,6 @@ function getPromptChips(manifest) {
   ]
 }
 
-export default function ChatPanel({ manifest = null }) {
-  const paperTitle = manifest?.paper?.title ?? manifest?.manifest?.paper?.title ?? null
-  const [messages, setMessages] = useState([
-    { id: 1, role: 'assistant', content: getGreeting(paperTitle) },
-=======
 const ACTION_LABELS = {
   add_component:       { verb: 'Add component',       color: '#16A34A', bg: '#EDF7ED' },
   remove_component:    { verb: 'Remove component',    color: '#DC2626', bg: '#FEF2F2' },
@@ -56,27 +45,17 @@ function ActionChip({ action, onAccept, onDismiss }) {
         {detail && <span className="action-chip-detail">— {detail}</span>}
       </div>
       <div className="action-chip-buttons">
-        <button className="action-chip-btn action-chip-btn--accept" onClick={onAccept}>
-          Apply
-        </button>
-        <button className="action-chip-btn action-chip-btn--dismiss" onClick={onDismiss}>
-          Dismiss
-        </button>
+        <button className="action-chip-btn action-chip-btn--accept" onClick={onAccept}>Apply</button>
+        <button className="action-chip-btn action-chip-btn--dismiss" onClick={onDismiss}>Dismiss</button>
       </div>
     </div>
   )
 }
 
-export default function ChatPanel({ manifest, onAction }) {
+export default function ChatPanel({ manifest = null, onAction }) {
+  const paperTitle = manifest?.paper?.title ?? manifest?.manifest?.paper?.title ?? null
   const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'assistant',
-      content: "Hi! I'm the ML Lens Architect. Ask me anything about this architecture, or tell me to add, remove, or modify components in the sandbox.",
-      action: null,
-      actionState: null, // null | 'pending' | 'applied' | 'dismissed'
-    },
->>>>>>> Stashed changes
+    { id: 1, role: 'assistant', content: getGreeting(paperTitle), action: null, actionState: null },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -89,33 +68,21 @@ export default function ChatPanel({ manifest, onAction }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-<<<<<<< Updated upstream
+  const applyAction = (msgId) => {
+    const msg = messages.find((m) => m.id === msgId)
+    if (msg?.action) onAction?.(msg.action)
+    setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'applied' } : m))
+  }
+
+  const dismissAction = (msgId) => {
+    setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, actionState: 'dismissed' } : m))
+  }
+
   const send = async (text) => {
     const msg = (text ?? input).trim()
     if (!msg || loading || !manifest) return
 
-    const userMsg = { id: Date.now(), role: 'user', content: msg }
-=======
-  const applyAction = (msgId) => {
-    const msg = messages.find((m) => m.id === msgId)
-    if (msg?.action) onAction?.(msg.action)
-    setMessages((prev) =>
-      prev.map((m) => m.id === msgId ? { ...m, actionState: 'applied' } : m)
-    )
-  }
-
-  const dismissAction = (msgId) => {
-    setMessages((prev) =>
-      prev.map((m) => m.id === msgId ? { ...m, actionState: 'dismissed' } : m)
-    )
-  }
-
-  const send = async () => {
-    const text = input.trim()
-    if (!text || loading) return
-
-    const userMsg = { id: Date.now(), role: 'user', content: text, action: null, actionState: null }
->>>>>>> Stashed changes
+    const userMsg = { id: Date.now(), role: 'user', content: msg, action: null, actionState: null }
     const nextMessages = [...messages, userMsg]
     setMessages(nextMessages)
     setInput('')
@@ -130,11 +97,7 @@ export default function ChatPanel({ manifest, onAction }) {
           messages: nextMessages
             .filter((m) => m.role === 'user' || m.role === 'assistant')
             .map(({ role, content }) => ({ role, content })),
-<<<<<<< Updated upstream
           manifest,
-=======
-          manifest: manifest ?? null,
->>>>>>> Stashed changes
         }),
       })
 
@@ -164,10 +127,7 @@ export default function ChatPanel({ manifest, onAction }) {
   }
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
   const chips = getPromptChips(manifest)
@@ -175,20 +135,11 @@ export default function ChatPanel({ manifest, onAction }) {
   return (
     <aside className="chat-panel">
       <div className="chat-panel-header">
-<<<<<<< Updated upstream
         <div className="chat-panel-title-row">
           <Sparkles size={13} color="var(--c-teal)" />
           <span className="chat-panel-title">Ask Yukti</span>
         </div>
         <p className="chat-panel-subtitle">Schema-grounded answers only. No hallucination.</p>
-=======
-        <span className="chat-panel-title">Architect</span>
-        {manifest?.paper?.title && (
-          <span className="badge badge-completed" title={manifest.paper.title}>
-            {manifest.paper.arxiv_id ?? 'paper'}
-          </span>
-        )}
->>>>>>> Stashed changes
       </div>
 
       <div className="chat-messages">
@@ -231,11 +182,7 @@ export default function ChatPanel({ manifest, onAction }) {
         <div className="chat-prompt-chips">
           <span className="chat-prompt-chip-label">Try asking</span>
           {chips.map((chip) => (
-            <button
-              key={chip}
-              className="chat-prompt-chip"
-              onClick={() => send(chip)}
-            >
+            <button key={chip} className="chat-prompt-chip" onClick={() => send(chip)}>
               {chip}
             </button>
           ))}
@@ -246,11 +193,7 @@ export default function ChatPanel({ manifest, onAction }) {
         <textarea
           className="chat-textarea"
           rows={2}
-<<<<<<< Updated upstream
-          placeholder={manifest ? "Ask about components, shapes, invariants…" : "Load a paper to enable chat"}
-=======
-          placeholder="Ask about the architecture, or say 'add a ReLU layer after the FFN'…"
->>>>>>> Stashed changes
+          placeholder={manifest ? "Ask about components, shapes, invariants, or say 'add a ReLU after the FFN'…" : "Load a paper to enable chat"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
